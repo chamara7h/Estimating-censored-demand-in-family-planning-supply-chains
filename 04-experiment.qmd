@@ -1,0 +1,275 @@
+# Experiment setup {#sec-experiment}
+
+We adopt a two-stage experimental design consisting of (1) a numerical experiment using synthetic data, and (2) an empirical experiment based on real-world data from the LMIS of Côte d’Ivoire. The numerical experiment allows us to measure performance against a known ”true” demand, while the empirical experiment tests the methods under real-world operational constraints. An overview of the experimental framework is shown in Figure \ref{fig:conceptual-framework}.
+
+```{=latex}
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[
+  scale=0.5, transform shape,
+  node distance = 8mm and 10mm,
+  >=Stealth,
+  every node/.style={font=\small},
+  splitbox/.style = {
+    rectangle split,
+    rectangle split parts=2,
+    draw,
+    rounded corners,
+    align=left,
+    inner sep=3pt,
+    text width=46mm,
+    minimum height=10mm
+  },
+  splitwide/.style = {
+    rectangle split,
+    rectangle split parts=2,
+    draw,
+    rounded corners,
+    align=left,
+    inner sep=3pt,
+    text width=120mm
+  },
+  splitmid/.style = {
+    rectangle split,
+    rectangle split parts=2,
+    draw,
+    rounded corners,
+    align=left,
+    inner sep=3pt,
+    text width=60mm
+  },
+  splitlong/.style = {
+    rectangle split,
+    rectangle split parts=2,
+    draw,
+    rounded corners,
+    align=left,
+    inner sep=3pt,
+    text width=70mm
+  }
+]
+
+% Top inputs
+\node[splitbox] (syn) {
+  \textbf{Synthetic Demand}
+  \nodepart{second}
+  (Numerical Experiment)
+};
+
+\node[splitbox, right=28mm of syn] (lmis) {
+  \textbf{LMIS Observed Demand}
+  \nodepart{second}
+  (Empirical Experiemt)
+};
+
+% Preprocessing
+\coordinate (mid) at ($(syn.south)!0.5!(lmis.south)$);
+\node[splitmid, below=16mm of mid] (pre) {
+  \textbf{Data Preprocessing}
+  \nodepart{second}
+  -- Identify Censorship\\
+  -- Add Regressors
+};
+
+% Forecasting methods
+\node[splitwide, below=14mm of pre] (fm) {
+  \textbf{Forecasting Methods}
+  \nodepart{second}
+  -- \textbf{TCKF} (proposed model)\\
+  -- \emph{Statistical:} Naive, Mean, ETS, ARIMA, SBA, Linear Regression\\
+  -- \emph{Machine Learning:} LightGBM\\
+  -- \emph{Foundational:} TimeGPT\\
+  -- LMIS Forecast (Empirical only)\\
+  -- Expert Judgment (Empirical only)
+};
+
+% Forecast outputs
+\node[splitmid, below=12mm of fm] (fo) {
+  \textbf{Forecast Outputs}
+  \nodepart{second}
+  -- Point Forecast\\
+  -- Prediction Interval (Conformal)
+};
+
+% Inventory policies
+\node[splitlong, right=75mm of lmis] (pol) {
+  \textbf{Inventory Policies}
+  \nodepart{second}
+  1. Deterministic (Order-up-to mean)\\
+  2. Quantile-based (Order-up-to $\alpha$-level)
+  3. Myopic
+  4. Oracle
+};
+
+% Simulation engine
+\node[splitlong, below=12mm of pol] (sim) {
+  \textbf{Inventory Simulation Engine}
+  \nodepart{second}
+  -- Update stock levels\\
+  -- Apply lead times\\
+  -- Record lost sales\\
+  -- Apply reorder rules
+};
+
+% Metrics
+\node[splitmid, below left=4mm and 4mm of sim] (fa) {
+  \textbf{Forecast Accuracy}
+  \nodepart{second}
+  -- Rel RMSE\\
+  -- Forecast Value Added (FVA)\\
+  -- Pinball Loss\\
+  -- Skill Score
+};
+
+\node[splitmid, below right=4mm and 4mm of sim] (ip) {
+  \textbf{Inventory Performance}
+  \nodepart{second}
+  -- CSL\\
+  -- Stock-Out Rate\\
+  -- Normalised inventory holding\\
+  -- Unified Relative Score (URS)
+};
+
+% Public health impact
+\coordinate (bottommid) at ($(fa.south)!0.5!(ip.south)$);
+\node[splitlong, below=12mm of bottommid] (phi) {
+  \textbf{Public Health Impact}
+  \nodepart{second}
+  Based on Stockout Rate\\
+  -- $\Delta$ mCPR\\
+  -- Users Lost\\
+  -- Abortions Averted\\
+  -- Maternal Deaths Averted\\
+  -- Unintended Pregnancies
+};
+
+% Arrows
+\draw[->] (syn.south) |- (pre.west);
+\draw[->] (lmis.south) |- (pre.east);
+\draw[->] (pre.south) -- (fm.north);
+\draw[->] (fm.south)  -- (fo.north);
+\path (fo.east) -- +(3.5,0) coordinate (s3stub);
+\draw[->] (fo.east) -- (s3stub) |- (pol.west);
+\draw[->] (pol.south) -- (sim.north);
+\draw[->] (sim.west) -| (fa.north);
+\draw[->] (sim.east) -| (ip.north);
+\draw[->] (fa.south) |- (phi.west);
+\draw[->] (ip.south) |- (phi.east);
+
+\end{tikzpicture}
+\caption{Overview of the experimental framework for evaluating contraceptive demand forecasts under censorship.}
+\label{fig:conceptual-framework}
+\end{figure}
+```
+
+
+## Forecasting Methods
+
+We benchmark our TCKF model against a suite of standard statistical (Naïve, Mean, Exponential Smoothing State Space (ETS), ARIMA, Syntetos–Boylan Approximation (SBA), and Linear Regression (LR)), machine learning (LightGBM), and foundational (TimeGPT) models. In the empirical experiment, we also include operational baselines: the official LMIS System-Generated Forecast and the human Demand Planner-Adjusted forecast. Full descriptions of these benchmarks, their implementations, and parameter settings are detailed in the **E-Companion, Section 2.** These benchmarks were selected based on prior evidence in contraceptive forecasting @hewage2025.
+
+\rev{Our forecasting target is monthly facility-level demand for each contraceptive product, distinguishing observed (potentially censored) LMIS demand from the latent (true) demand that we aim to estimate and forecast.} For all models, we assume that there is no censorship during the forecast horizon. This is because our objective is not to predict stockouts or service interruptions, and these events in future are unknown at the time of forecasting. In most models, we implemented two versions: one without regressors and one with regressors that include the censorship type (i.e., none, partially censored, or fully censored). As noted by @hyndman2025, incorporating exogenous variables that capture specific events can improve forecast accuracy. Including such dummy variables allows us to explore how well different models leverage this additional information and compare their performance accordingly. @tbl-candidate summarises the candidate models used in both the numerical and empirical experiments.
+
+```{r}
+#| label: tbl-candidate
+#| echo: false
+#| cache: false
+#| tbl-cap: "Overview of the candidate models."
+
+read_csv(here::here("writings/manuscript/tables/candidate_models.csv")) |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(latex_options = "scale_down", font_size = 6) |>
+  column_spec(1, "8em") |>
+  column_spec(2, "12em") |>
+  column_spec(3, "20em") |>
+  column_spec(4, "8em") |>
+  column_spec(5, "8em") 
+
+```
+
+## Forecasting and inventory setup
+
+\rev{In line with current practice in Côte d’Ivoire, the system operates as a pull-based replenishment model, where healthcare facilities determine refill quantities and submit monthly forecasts and order requests one month in advance}, we set the forecast horizon to $h = 1$. This enables a direct comparison with both system-generated and demand planner–adjusted forecasts. In our forecasting setup, we use a time series cross-validation approach with a rolling-origin and an expanding training window. For the **numerical experiment**, each time series uses the first 70 observations for training, and the next 30 observations for evaluation. For the **empirical experiment**, the training period spans from January 2016 to December 2018, and the test period covers the entirety of 2019. At each iteration, the model is trained on all data up to time $t$, and used to forecast the next period. This setup provides a robust view of forecast accuracy across varying demand conditions [@svetunkov2023].
+
+To ensure consistency across models, we generate prediction intervals using conformal prediction. This matches the structure of the proposed TCKF model, which also uses a conformal prediction layer for uncertainty estimation. For LMIS forecasts and planner adjustments, which are provided as point estimates, we apply conformal prediction as post hoc to produce comparable uncertainty intervals.
+
+\rev{
+For the inventory simulation, we model a monthly periodic-review lost-sales system with a fixed lead time of one month ($L=1$), consistent with the replenishment cycle in Côte d’Ivoire. At the end of each month $t$, after demand is realised, a facility places an order $q_t$ that becomes available in month $t+1$. Replenishment decisions are based on the inventory position $IP_t$ (on-hand plus pipeline stock)} [@bijvank2011]. With $L=1$, \rev{pipeline stock equals the order placed in the previous month, and hence $IP_t = I_t + q_{t-1}$. Under an order-up-to policy with target level $U_t$, orders follow $q_t=\max{0, U_t - IP_t}$, and any demand exceeding available inventory is treated as lost sales.
+
+We evaluate a structured set of benchmark replenishment policies that vary only in how the target level $U_t$ is determined. These include: (i) a deterministic policy reflecting current LMIS practice (three-month buffer based on a point forecast)} [@hewage2025]; \rev{(ii) an uncertainty-aware base-stock policy that sets $U_t$ using forecast quantiles derived via conformal prediction} [@babai2025]; \rev{(iii) lost-sales heuristics commonly used in practice (myopic variants)} [@bijvank2011]; \rev{and (iv) an oracle benchmark that uses the latent demand process to provide an upper bound on achievable inventory performance under the same operating constraints} [@sachs2014]. \rev{We do not attempt to solve for a globally optimal dynamic inventory policy; rather, these benchmarks are used to assess how forecast quality and uncertainty quantification translate into replenishment performance in a standardised lost-sales setting. Full descriptions of the inventory policies are provided in the **E-Companion, Section 3.**}
+
+Alongside the model-based forecasts, we also include the system-generated and demand planner–adjusted forecasts in the inventory simulation to enable a full comparative analysis in empirical evaluation. We do not use actual stock movement records for inventory simulation, given the influence of external factors such as delivery delays and upstream stock availability at district warehouses. To standardise the setup and isolate the effect of forecasting quality, we fixed the lead time to one month, which aligns with the expected replenishment cycle in the current system.
+
+## Performance evaluation
+
+\rev{Method performance in both forecasting and inventory simulations is evaluated at each forecast origin for every product–site combination, with results aggregated to compute mean and distributional metrics.}
+
+### Forecast accuracy metrics
+
+\rev{We assess point accuracy using the *Relative Root Mean Squared Error (Rel RMSE)*, converted to a *Forecast Value Added (FVA)* score} [@gilliland2008fva]:
+
+$$
+FVA = (1 - Rel\ RMSE)\times 100\%
+$$ {#eq-fva}
+
+\rev{For interval forecasts, we use Pinball Loss, converted to a Skill Score relative to TCKF (see **E-Companion, Section 4** for full formulas). A positive FVA or Skill Score indicates that the method adds value relative to TCKF, while a negative value suggests inferior performance.
+
+In the *numerical experiment*, we observe both the latent (actual) demand and the censored demand, allowing evaluation across all time points, including censored periods. In the *empirical experiment*, only observed (and potentially censored) demand is available. Since censored observations may not reflect true demand, we exclude censored periods from forecast metric calculations to avoid bias. This is precisely why the numerical experiment is critical for benchmarking methods more rigorously than what is possible with empirical data alone.}
+
+### Inventory metrics
+
+\rev{In FPSC, forecasting is only as good as the inventory outcomes it enables. We therefore evaluate each forecast–policy combination in terms of how well it supports product availability without relying on excessive stockholding, a key constraint in resource-limited systems.
+
+We report *Cycle Service Level (CSL)* as the primary service metric:}
+
+$$
+CSL = \frac{1}{N}\sum_{t=1}^{N}(in\_stock_t = 1),
+\qquad
+in\_stock_t = 1 \ (I_t > 0)
+$$ {#eq-csl}
+
+\rev{i.e., the proportion of periods in which the facility had positive on-hand inventory at the start of month $t$ (and hence could serve demand in that month). To capture the resource burden required to achieve this service, we measure average on-hand inventory and normalise it to ensure comparability across products and sites:}
+
+$$
+\overline{I} = \frac{1}{N}\sum_{t=1}^{N} I_t,
+\qquad
+\overline{I}_{norm} = \frac{\overline{I}}{\overline{\hat{D}}},
+\qquad
+\overline{\hat{D}}=\frac{1}{N}\sum_{t=1}^{N} \hat{D}_t
+$$ {#eq-inorm}
+
+\rev{where $\hat{D}_t$ denotes the one-step-ahead demand estimate used for replenishment (available for all methods in both the numerical and empirical experiments).}
+
+### Unified inventory objective: Unified Relative Score (URS)
+
+\rev{
+To align the inventory evaluation with a single decision criterion that reflects the true operational realities of public health supply chains, we define a unified economic loss function that captures the trade-off between service failures and inventory burden. Drawing upon the framework proposed by } [@petropoulos2019], \rev{we introduce the Unified Relative Score (URS), formulated as a weighted quadratic (L2 norm) cost function:
+}
+
+$$
+URS(w) = \sqrt{ w \cdot \left( \frac{1 - CSL}{\overline{1 - CSL}} \right)^2 + (1 - w) \cdot \left( \frac{{I}_{norm}}{\overline{I}_{norm}} \right)^2 }
+$$ {#eq-urs}
+
+\rev{
+where: 
+
+**$CSL$**: The achieved cycle service level of the evaluated forecast–policy combination, where $(1 - CSL)$ represents the resulting stockout rate; **$\overline{1 - CSL}$**: The average stockout rate across all evaluated forecasting methods, acting as a normalisation constant; **$I_{norm}$**: The normalised average on-hand inventory required to achieve the service level (representing the inventory burden, measured approximately in months of supply); **$\overline{I}_{norm}$**: The average normalised on-hand inventory across all evaluated methods, acting as a normalisation constant and **$w$**: The relative penalty weight assigned to service failures versus inventory expansion, where $w \in (0, 1)$.
+
+Lower values of $URS(w)$ indicate superior joint operational performance. In this formulation, the first term captures the relative severity of service failures under lost-sales dynamics (where the achieved stockout rate is scaled by the average stockout rate across all evaluated methods). The second term similarly penalises the relative average inventory burden required to achieve that service level. 
+The adoption of the L2 norm rather than a traditional linear equation is a deliberate methodological choice. The squared form explicitly reflects the dis-economies of scale in physical operations; it heavily penalises extreme operational imbalances, such as the disproportionate inventory hoarding frequently utilised to manually buffer against stockouts. 
+
+Furthermore, unlike traditional commercial retail environments where holding and shortage costs are often treated with equal importance, resource-constrained FPSC face highly asymmetric opportunity costs. A stockout translates directly into severe human repercussions (e.g., unintended pregnancies, mortality), whereas overstocking primarily incurs financial holding constraints. To capture this operational reality, the parameter $w \in$ controls the relative penalty weight assigned to service failures versus inventory expansion. Because item-level financial cost parameters are not available, we evaluate the $URS(w)$ over a comprehensive grid of weights: $w \in \{0.1, 0.25, 0.5, 0.75, 0.9\}$. This ensures that conclusions regarding forecasting utility are rigorously stress-tested and not driven by a single subjective choice of trade-off parameter.
+}
+
+### Public health indicators
+
+\rev{Beyond operational inventory metrics, we assess how stockouts translate into missed public health outcomes. We adopt a public health impact framework adapted from the RH Supplies Impact} Calculator[^1] \rev{to link stockout rates to changes in mCPR and downstream outcomes (Users Lost, Unintended Pregnancies, etc.). Full calculation details are provided in  \textbf{E-Companion, Section 4}.}
+
+[^1]: RHSC Impact Calculator: <https://www.rhsupplies.org/activities-resources/tools/reducing-stockouts-impact-calculator>
+
+\rev{We compute the *Stock-Out Rate (SOR)* specifically for this public health translation:}
+
+$$
+SOR = \frac{1}{N}\sum_{t=1}^{N}\mathbb{1}(in\_stock_t = 0)
+$$ {#eq-sor-main}
+
+\rev{Under our binary availability indicator, $SOR = 1 - CSL$; we report SOR for interpretability in the public-health translation. This translation is reported separately from the unified inventory objective because it reflects system-level impact assumptions that are not identifiable from facility-level LMIS data. While these estimates are illustrative and not facility-specific, they provide a practical way to interpret stockout outcomes through the lens of public health. In doing so, we emphasise that inventory performance is not purely an operational concern but a proxy for real-world health impact in systems where availability governs access.}

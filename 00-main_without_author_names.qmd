@@ -1,0 +1,113 @@
+---
+title: "Estimating censored demand in family planning supply chains: forecast accuracy, inventory implications, and public health outcomes"
+
+  
+abstract: | 
+  \begin{singlespace}
+  Lost sales due to stockouts and service interruptions create a major challenge for demand forecasting in family planning supply chains. When demand is censored, forecasts become biased, reinforcing cycles of understocking and unmet need. Existing models often ignore this distortion or treat all censorship uniformly, limiting their decision relevance in operational settings. We propose the Truncated Conformal Kalman Filter (TCKF), a novel forecasting framework that integrates a Tobit Kalman Filter with conformal prediction. Unlike existing approaches, TCKF explicitly distinguishes between partial censorship (stockouts) and full censorship (interruptions or no-stock-received periods), enabling context-sensitive state updates. It also adapts to prolonged uncertainty through dynamic process-noise inflation and generates distribution-free prediction intervals, avoiding restrictive assumptions about error distributions. We evaluate performance using both synthetic and real world data from the family planning program in Côte d’Ivoire, and we assess their impact on public health outcomes. Across both settings, TCKF consistently outperforms benchmark methods in forecast accuracy, considering both point and probabilistic forecasts, as well as in downstream inventory performance. Moreover, our results show how improvements in forecast accuracy can translate into better product availability and enhanced public health outcomes. This work bridges a critical gap between forecasting and inventory control and offers a scalable solution for supply chains facing censored demand.
+  \end{singlespace}
+  
+keywords:
+  - Censored Demand Forecasting
+  - Tobit Kalman Filter
+  - Conformal Prediction
+  - Inventory Planning
+  - Family Planning Supply Chains
+  
+bibliography: references.bib
+
+execute:
+  echo: false
+  message: false
+  warning: false
+  cache: false
+pdf-engine: pdflatex
+prefer-html: true
+format:
+  html:
+    number-sections: true
+  docx:
+    number-sections: true
+  elsevier-pdf:
+    keep-tex: true
+    number-sections: true
+    documentclass: elsarticle
+    fontsize: 10.8pt
+    include-in-header:
+      - header.tex
+      - text: |
+          \usepackage{setspace} 
+          \onehalfspacing
+          \geometry{margin=1in}
+          \usepackage{todonotes,mathtools,bm,amsmath,mathpazo}
+          \usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+          \setlength{\parindent}{0cm}
+          \usepackage{tikz}
+          \usetikzlibrary{
+              arrows.meta,
+              positioning,
+              fit,
+              calc,
+              shapes.misc,
+              shapes.multipart
+            }
+    journal:
+      name: TBD
+      formatting: preprint
+      model: 3p
+      cite-style: authoryear
+---
+
+
+```{r}
+#| label: setup
+#| context: setup
+#| include: false
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(ggthemes)
+library(patchwork)
+library(tsibble)
+library(feasts)
+library(showtext)
+library(viridis)
+library(tsutils)
+library(furrr)
+
+font_add_google("Assistant", "C:/Windows/Fonts/Assistant-Regular.ttf")
+showtext_auto()
+
+```
+
+```{r introduction, child="01-introduction.qmd"}
+```
+
+```{r literature, child="02-literature.qmd"}
+```
+
+```{r model, child="03-proposed_model.qmd"}
+```
+
+```{r experiment, child="04-experiment.qmd"}
+```
+
+```{r results, child="05-analysis.qmd"}
+```
+
+```{r discussion, child="07-discussion.qmd"}
+```
+
+<!-- # ```{r conclusion, child="08-conclusion.qmd"} -->
+<!-- # ``` -->
+
+# Data availability statement {#reproducibility .unnumbered}
+
+The R codes, along with the data required to reproduce all results in this paper, will be made available in a GitHub repository upon acceptance of the paper.
+
+# References {#references .unnumbered}
+
+::: {#refs}
+:::
+

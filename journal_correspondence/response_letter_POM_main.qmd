@@ -1,0 +1,217 @@
+---
+bibliography: references.bib
+execute:
+  echo: false
+  message: false
+  warning: false
+  cache: false
+format:
+  pdf:
+    pdf-engine: pdflatex
+    papersize: a4
+    geometry: "margin = 2.5cm"
+    include-in-header: header.tex
+---
+
+**Response letter - POM-Oct-25-OA-1644 (deadline – 14 June)**
+
+\begin{flushright}
+13/03/2026
+\end{flushright}
+
+Dear Professor Christopher Tang,
+
+Thank you for the opportunity to revise our manuscript, “*Estimating censored demand in family planning supply chains: forecast accuracy, inventory implications, and public health outcomes*” (Manuscript ID: POM-Oct-25-OA-1644). We agree that the original submission required a more rigorous and comprehensive analysis, and we have revised the paper substantially to address the review team's key concerns.
+
+To ensure the manuscript is theoretically robust and operationally grounded, we have made the following primary revisions:
+
+- We added a structured diagnostic analysis to systematically test key modelling assumptions (state specification, uncertainty inflation, conformal calibration) and map exactly when TCKF is most beneficial across different operational regimes.
+
+- We replaced the previous composite metric with the Unified Relative Score (URS). This allows us to rigorously evaluate the trade-off between Cycle Service Level (CSL) and inventory footprint across a comprehensive grid of asymmetric penalty weights.
+
+- We broadened the inventory stress-test by adding myopic lost-sales heuristics and a latent-demand Oracle benchmark to establish a theoretical performance upper bound.
+
+- We restructured the methodology to formally link how TCKF’s specific features—such as separating partial vs. full censoring to avoid the "spiral-down" effect, and utilising conformal calibration—directly drive replenishment performance.
+
+- We corrected the public-health calculations and expanded the discussion on real-world scalability (e.g., DHIS2/CHAP integration) and the operational cost-benefit trade-off of our model versus current human Demand Planners. 
+
+A detailed, point-by-point response is provided in the accompanying response document. To assist the review team, all substantive changes have been highlighted in \textcolor{ForestGreen}{green} in the revised manuscript and E-Companion. 
+
+We believe these revisions have significantly elevated the rigor, transparency, and practical relevance of the manuscript, and we hope it now meets the journal's expectations. Thank you for your continued time and consideration. We look forward to your feedback.
+
+Sincerely,
+
+The Authors
+
+
+
+```{r}
+#| label: setup
+#| context: setup
+#| include: false
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(ggthemes)
+library(patchwork)
+library(tsibble)
+library(feasts)
+library(showtext)
+library(viridis)
+library(tsutils)
+library(furrr)
+
+font_add_google("Assistant", "C:/Windows/Fonts/Assistant-Regular.ttf")
+showtext_auto()
+
+```
+
+```{r}
+#| include: false
+
+# Load data ---------------------------------------------------------------
+
+# FC measures
+
+fc_acc_num <- read_rds(here::here('data/results/num_ex_pinball_origin.rds')) |> 
+  left_join(read_rds(here::here('data/results/num_ex_point_acc_origin.rds')),
+            by = c('.id', 'date', "store", "product", 'model')) |> 
+  rename(origin = .id) |> 
+  mutate(model = case_when(model == 'lr' ~ 'Linear Regression',
+                           model == 'lr_reg' ~ 'Censored Linear Regression',
+                           model == 'moving_average' ~ 'Mean',
+                           model == 'moving_average_reg' ~ 'Censored Mean',
+                           model == 'naive' ~ 'Naive',
+                           model == 'tckf' ~ 'TCKF',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'arima_reg' ~ 'Censored ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'Censored TimeGPT',
+                           model == 'lgbm' ~ 'LightGBM',
+                           model == 'lgbm_reg' ~ 'Censored LightGBM',
+                           model == 'sba' ~ 'Syntetos-Boylan Approx'),
+         model = factor(model,
+                        levels = c("TCKF","Naive","Mean", 'Censored Mean', 'Syntetos-Boylan Approx', 'ETS', 'ARIMA', 'Censored ARIMA',
+                                   'Linear Regression', 'Censored Linear Regression', 'LightGBM', 'Censored LightGBM',
+                                   'TimeGPT', 'Censored TimeGPT')))
+
+fc_acc_emp <- read_rds(here::here('data/results/emp_ex_pinball_origin.rds')) |> 
+  left_join(read_rds(here::here('data/results/emp_ex_point_acc_origin.rds')), 
+            by = c('.id', 'date', "site_code", "product_code", 'model')) |> 
+  rename(origin = .id) |> 
+  mutate(model = case_when(model == 'lr' ~ 'Linear Regression',
+                           model == 'lr_reg' ~ 'Censored Linear Regression',
+                           model == 'moving_average' ~ 'Mean',
+                           model == 'moving_average_reg' ~ 'Censored Mean',
+                           model == 'naive' ~ 'Naive',
+                           model == 'tckf' ~ 'TCKF',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'arima_reg' ~ 'Censored ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'Censored TimeGPT',
+                           model == 'lgbm' ~ 'LightGBM',
+                           model == 'lgbm_reg' ~ 'Censored LightGBM',
+                           model == 'sba' ~ 'Syntetos-Boylan Approx',
+                           model == 'demand_planner' ~ 'Demand Planner',
+                           model == 'system_gen' ~ 'System Generated',
+                           model == 'site_system' ~ 'Site ERP'),
+         model = factor(model,
+                        levels = c("TCKF", 'Site ERP', 'System Generated', 'Demand Planner', "Naive","Mean", 'Censored Mean', 'Syntetos-Boylan Approx', 'ETS', 'ARIMA', 'Censored ARIMA',
+                                   'Linear Regression', 'Censored Linear Regression', 'LightGBM', 'Censored LightGBM',
+                                   'TimeGPT', 'Censored TimeGPT'))) |> 
+  filter(model != 'Site ERP')
+
+
+# Inv measures
+
+inv_metrics_num <- read_rds(here::here('data/results/metrics_inv_num.rds')) |>
+  unnest(loss_curve) |>
+  mutate(model = case_when(model == 'lr' ~ 'Linear Regression',
+                           model == 'lr_reg' ~ 'Censored Linear Regression',
+                           model == 'moving_average' ~ 'Mean',
+                           model == 'moving_average_reg' ~ 'Censored Mean',
+                           model == 'naive' ~ 'Naive',
+                           model == 'tckf' ~ 'TCKF',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'arima_reg' ~ 'Censored ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'Censored TimeGPT',
+                           model == 'lgbm' ~ 'LightGBM',
+                           model == 'lgbm_reg' ~ 'Censored LightGBM',
+                           model == 'sba' ~ 'Syntetos-Boylan Approx'),
+         model = factor(model,
+                        levels = c("TCKF","Naive","Mean", 'Censored Mean', 'Syntetos-Boylan Approx', 'ETS', 'ARIMA', 'Censored ARIMA',
+                                   'Linear Regression', 'Censored Linear Regression', 'LightGBM', 'Censored LightGBM',
+                                   'TimeGPT', 'Censored TimeGPT'))) 
+
+inv_metrics_emp <- read_rds(here::here('data/results/metrics_inv_emp.rds')) |> 
+  unnest(loss_curve) |> 
+  filter(model != 'site_system') |> 
+  mutate(model = case_when(model == 'lr' ~ 'Linear Regression',
+                           model == 'lr_reg' ~ 'Censored Linear Regression',
+                           model == 'moving_average' ~ 'Mean',
+                           model == 'moving_average_reg' ~ 'Censored Mean',
+                           model == 'naive' ~ 'Naive',
+                           model == 'tckf' ~ 'TCKF',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'arima_reg' ~ 'Censored ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'Censored TimeGPT',
+                           model == 'lgbm' ~ 'LightGBM',
+                           model == 'lgbm_reg' ~ 'Censored LightGBM',
+                           model == 'sba' ~ 'Syntetos-Boylan Approx',
+                           model == 'demand_planner' ~ 'Demand Planner',
+                           model == 'system_gen' ~ 'System Generated'),
+         model = factor(model,
+                        levels = c("TCKF", 'Site ERP', 'System Generated', 'Demand Planner', "Naive","Mean", 'Censored Mean', 'Syntetos-Boylan Approx', 'ETS', 'ARIMA', 'Censored ARIMA',
+                                   'Linear Regression', 'Censored Linear Regression', 'LightGBM', 'Censored LightGBM',
+                                   'TimeGPT', 'Censored TimeGPT')))  
+
+inv_metrics_num_summary <- inv_metrics_num |>
+  group_by(policy, model, lambda) |>
+  summarise(
+    CSL = round(mean(CSL, na.rm = TRUE), 2),
+    stockout_rate = round(mean(stockout_rate, na.rm = TRUE), 2),
+    I_norm = round(mean(I_norm, na.rm = TRUE), 2),
+    avg_I = round(mean(avg_I, na.rm = TRUE), 2),
+    L = round(mean(L, na.rm = TRUE), 2),
+    .groups = "drop"
+  )
+
+inv_metrics_emp_summary <- inv_metrics_emp |>
+  group_by(policy, model, lambda) |>
+  summarise(
+    CSL = round(mean(CSL, na.rm = TRUE), 2),
+    stockout_rate = round(mean(stockout_rate, na.rm = TRUE), 2),
+    I_norm = round(mean(I_norm, na.rm = TRUE), 2),
+    avg_I = round(mean(avg_I, na.rm = TRUE), 2),
+    L = round(mean(L, na.rm = TRUE), 2),
+    .groups = "drop"
+  )
+
+
+```
+
+\pagebreak
+
+```{r se, child="response_letter_POM_se.qmd"}
+```
+
+\pagebreak
+
+```{r r1, child="response_letter_POM_r1.qmd"}
+```
+
+\pagebreak
+
+```{r r2, child="response_letter_POM_r2.qmd"}
+```
+
+\pagebreak
+
+# References {#references .unnumbered}

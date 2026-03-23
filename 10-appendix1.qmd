@@ -1,0 +1,48 @@
+## Section 1: Deriving the truncated Log-Likelihood {#sec-appendix1 .unnumbered}
+
+The derivation of the likelihood function begins by noting that, prior to censorship, the one-step-ahead forecast error for each observation follows a normal distribution:
+
+$$
+y_t \mid \mathcal{F}_{t-1} \sim \mathcal{N}(\mu_t, \sigma_t^2)
+$$
+
+where $\mu_t = H \hat{X}_{t|t-1}$ and $\sigma_t^2 = H P_{t|t-1} H^\top + R$ are the predicted mean and variance at time $t$, conditional on prior information $\mathcal{F}_{t-1}$.
+
+However, due to stock constraints, the observed values may be censored. Accordingly, we distinguish three regimes:
+
+* **Uncensored**: The full observation $y_t$ is available. The likelihood is the usual Gaussian density:
+
+  $$
+  p(y_t \mid \mu_t, \sigma_t^2) = \frac{1}{\sqrt{2\pi \sigma_t^2}} \exp\left( -\frac{(y_t - \mu_t)^2}{2\sigma_t^2} \right)
+  $$
+
+* **Partially censored**: We observe $y_t = \min(D_t, s_t)$, and know that true demand exceeds the observed value. This is equivalent to right-censoring from below at $y_t$, and the likelihood becomes the survival function:
+
+  $$
+  P(Y_t > y_t) = 1 - \Phi\left( \frac{y_t - \mu_t}{\sigma_t} \right)
+  $$
+
+* **Fully censored**: For $y_t = 0$, the only information available is that demand is positive but completely unobserved due to stockouts or interruptions. The likelihood in this case becomes:
+
+  $$
+  P(Y_t > 0) = 1 - \Phi\left( -\frac{\mu_t}{\sigma_t} \right)
+  $$
+
+Taking logs and summing over time leads to the total log-likelihood:
+
+$$
+\log L(\theta) = \sum_t \log p(y_t \mid \mu_t, \sigma_t^2)
+$$
+
+which, depending on the censorship status of each observation, expands to:
+
+$$
+\log L(\theta) = \sum_t
+\begin{cases}
+-\frac{1}{2} \left[ \log(2\pi \sigma_t^2) + \frac{(y_t - \mu_t)^2}{\sigma_t^2} \right], & \text{if } y_t \text{ is uncensored} \\
+\log\left(1 - \Phi\left(\frac{y_t - \mu_t}{\sigma_t}\right)\right), & \text{if } y_t \text{ is partially censored} \\
+\log\left(1 - \Phi\left(-\frac{\mu_t}{\sigma_t}\right)\right), & \text{if } y_t = 0 \text{ (fully censored)}
+\end{cases}
+$$
+
+Each term in this expression corresponds to the conditional probability of observing $y_t$ given the predicted distribution under the Kalman framework. For uncensored observations, the log-likelihood follows the Gaussian log-density, directly comparing the observed and predicted values. In the partially censored case, the observation is known only to lie above the censored threshold; thus, its likelihood is the log of the survival function of the normal distribution. For fully censored points, where $y_t = 0$, we only know that the true demand exceeded zero. This results in a likelihood based solely on the left tail of the predicted Gaussian distribution.

@@ -1,0 +1,106 @@
+## Section 4: Performance metrics {#sec-appendix4 .unnumbered}
+
+### Forecast metrics {.unnumbered}
+
+\rev{To evaluate the performance of the benchmark forecasting methods in a way that is both interpretable and operationally meaningful, we use relative metrics for point forecasts and skill scores for probabilistic forecasts. This approach allows us to compare each model against the proposed TCKF benchmark while remaining robust to scale differences across series.
+
+For point forecasts, we use the *Relative Root Mean Squared Error (Rel RMSE)*, which quantifies how much better or worse a method performs relative to TCKF:}
+
+$$
+Rel\ RMSE = \frac{RMSE_{\text{Method}}}{RMSE_{\text{TCKF}}}
+$$ {#eq-relrmse}
+
+\rev{Values below 1 indicate better performance than TCKF, while values above 1 indicate worse performance} [@davydenko2013]. \rev{The RMSE is defined as:}
+
+$$
+RMSE = \sqrt{\frac{1}{n} \sum_{t=1}^{n} (\hat{y}_t - y_t)^2}
+$$ {#eq-rmse}
+
+\rev{where $\hat{y}_t$ is the forecast and $y_t$ is the actual observed value} [@hyndman2021forecasting].
+
+\rev{To make this more interpretable, we convert Rel RMSE into a *Forecast Value Added (FVA)* score} [@gilliland2008fva]:
+
+$$
+FVA = (1 - Rel\ RMSE) \times 100\%
+$$
+
+\rev{For interval forecasts, we use *Pinball Loss*, which is particularly suited for evaluating prediction intervals. In FPSC settings, where service levels are critical, this scoring rule penalises both *underprediction* and *overprediction* asymmetrically, making it well-aligned with our goal of reliable and calibrated uncertainty estimates} [@kolassa2023].
+
+\rev{The pinball loss at time $t$ for quantile level $p$ is defined as:}
+
+$$
+Q_{p,t} =
+\begin{cases}
+2(1 - p)(\hat{f}_{p,t} - y_t), & \text{if } y_t < \hat{f}_{p,t} \\
+2p(y_t - \hat{f}_{p,t}), & \text{if } y_t \geq \hat{f}_{p,t}
+\end{cases}
+$$ {#eq-pinball}
+
+\rev{where $\hat{f}_{p,t}$ is the predicted quantile at level $p$, and $y_t$ is the actual observed value. Lower values indicate sharper, better-calibrated intervals} [@hyndman2021forecasting].
+
+\rev{To assess improvements relative to TCKF, we use the *Pinball Loss Skill Score*} [@hyndman2021forecasting]:
+
+$$
+\text{Skill Score} = \frac{\text{Pinball Score}_{\text{TCKF}} - \text{Pinball Score}_{\text{Method}}}{\text{Pinball Score}_{\text{TCKF}}} \times 100\%
+$$ {#eq-skill}
+
+### Inventory evaluation objective and metrics {.unnumbered}
+
+\rev{Inventory performance reflects a trade-off between maintaining product availability and limiting excessive stockholding. In FPSC settings, this trade-off is particularly salient: achieving high service by carrying large buffers is increasingly unrealistic given storage and funding constraints. We therefore evaluate each method using a unified objective that combines service and inventory burden, and report the underlying metrics as diagnostics.}
+
+#### Service and inventory burden
+
+\rev{We measure service using *Cycle Service Level (CSL)*, defined as the proportion of periods in which stock was available:}
+
+$$
+CSL = \frac{1}{N} \sum_{t=1}^{N} (in\_stock_t = 1)
+$$ {#eq-csl}
+
+\rev{In the simulation, $in\_stock_t = \mathbb{1}(I_t>0)$, where $I_t$ denotes on-hand inventory at the start of month $t$ (i.e., before demand in month $t$ is realised). For interpretability in the public-health translation below, we also define the *Stock-Out Rate (SOR)* using the same indicator:}
+
+$$
+SOR = \frac{1}{N} \sum_{t=1}^{N} \mathbb{1}(in\_stock_t = 0) = 1 - CSL.
+$$ {#eq-sor}
+
+\rev{To quantify the inventory burden required to achieve this service, we compute average on-hand inventory:}
+
+$$
+\overline{I} = \frac{1}{N} \sum_{t=1}^{N} I_t,
+$$ {#eq-avgI}
+
+\rev{and normalise it to ensure comparability across products and sites:}
+
+$$
+\overline{I}_{norm} = \frac{\overline{I}}{\overline{\hat{D}}},
+\qquad
+\overline{\hat{D}}=\frac{1}{N}\sum_{t=1}^{N} \hat{D}_t.
+$$ {#eq-inorm}
+
+\rev{Here $\hat{D}_t$ denotes the one-step-ahead demand estimate used for replenishment (available for all methods in both the numerical and empirical experiments). This ensures that $\overline{I}_{norm}$ is well-defined and comparable across products, facilities, and experimental settings.}
+
+### Public health indicators {.unnumbered}
+
+\rev{In FPSC, a shortage of contraceptives does not merely disrupt service delivery; it directly contributes to avoidable pregnancies, maternal and infant complications, and lost opportunities for system-wide impact} [@karimi2021]. \rev{To quantify this, we adopt a public health impact framework adapted from the RH Supplies Impact} Calculator[^2]. \rev{This model links changes in contraceptive availability to shifts in modern contraceptive prevalence rate} (mCPR)[^3], \rev{drawing on empirical estimates from} @karim2008measuring, @wang2012family, and @ross2012use. \rev{Based on these studies, @rosen2018modeling estimate that the addition of one method can increase mCPR by 6.5 percentage points.}
+
+[^2]: RHSC Impact Calculator: <https://www.rhsupplies.org/activities-resources/tools/reducing-stockouts-impact-calculator>
+
+[^3]: Percentage of women of reproductive age using modern contraceptive methods.
+
+\rev{Under the RHSC logic, reducing stockouts increases method availability, which in turn raises contraceptive use. We therefore express the change in mCPR relative to the TCKF benchmark as:}
+
+$$
+\Delta mCPR = 0.065 \times M \times (SOR_{\text{TCKF}} - SOR_{\text{Method}}),
+$$ {#eq-mcrp}
+
+\rev{where $M$ is the number of distinct methods considered. The corresponding change in users is:}
+
+$$
+\text{Users Gained} = \Delta mCPR \times \text{WRA Population},
+$$ {#eq-ul}
+
+\rev{where $\text{WRA Population}$ is the number of women of reproductive age. To estimate downstream outcomes, we apply conversion factors from the Adding It Up study} [@Singh2009]:
+
+-   Maternal deaths averted: $\frac{\text{Users Gained}}{3153}$
+-   Infant deaths averted: $\frac{\text{Users Gained}}{251}$
+-   Abortions averted: $\frac{\text{Users Gained}}{6.46}$
+-   Unintended pregnancies averted: $\frac{\text{Users Gained}}{3.63}$

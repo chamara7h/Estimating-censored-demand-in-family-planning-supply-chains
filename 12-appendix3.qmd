@@ -1,0 +1,117 @@
+## Section 3: Inventory policy {#sec-appendix3 .unnumbered}
+
+### Inventory system and timing {.unnumbered}
+
+\rev{
+We simulate a *monthly periodic-review* inventory system with *lost sales* and a fixed *lead time of one month* ($L=1$), consistent with the replenishment cycle in Côte d’Ivoire. At the end of each month $t$, after demand is realised, a facility places an order $q_t \ge 0$ that becomes available at the start of month $t+1$, where $q_t$ denotes the order placed at the end of month $t$ and received at the start of month $t+1$.
+
+Let $I_t$ denote the *on-hand inventory* at the ordering cycle (end of month $t$), and let $D_t$ denote the (latent) demand realised during month $t$. Sales are constrained by availability, and any unmet demand is treated as lost sales:
+}
+
+$$
+S_t = \min(I_t, D_t),
+\qquad
+L_t = D_t - S_t
+$$ {#eq-st}
+
+\rev{Inventory evolves according to: }
+
+$$
+I_{t+1} = I_t - S_t + q_t
+$$ {#eq-it}
+
+\rev{Ordering decisions are based on the *inventory position*, defined as on-hand inventory plus pipeline stock. With $L=1$, pipeline stock at the end of month $t$ equals the order placed in the previous month, and hence }
+
+$$
+IP_t = I_t + q_{t-1}
+$$ {#eq-ip}
+
+\rev{All replenishment policies considered in this study follow an order-up-to structure, differing only in how the target level $U_t$ is determined. Given a target $U_t$, the order quantity is: }
+
+$$
+q_t = \max{0, U_t - IP_t}
+$$ {#eq-qp}
+
+\rev{
+Contraceptive products are *programmed medicines* predominantly funded through donor support. As such, facilities typically receive what they order, and explicit *ordering costs are not a primary concern* at the facility level. The policies below therefore focus on buffering demand uncertainty and avoiding stockouts under lost-sales dynamics, while remaining consistent with observed ordering practice.
+}
+
+### Policy 1: deterministic order-up-to level (current practice) {.unnumbered}
+
+\rev{
+The first policy replicates the replenishment logic commonly used in Côte d’Ivoire’s LMIS practice. Facilities compute an average monthly consumption and maintain a buffer equivalent to three months of demand. Let $\hat{D}_t$ denote a point forecast for month $t+1$ (in practice, typically derived from recent average consumption). The target stock level is computed as:
+}
+
+$$
+U_t^{(1)} = 3 \times \hat{D}_t
+$$ {#eq-stock}
+
+\rev{The corresponding order quantity is: }
+
+$$
+q_t^{(1)} = \max{0, U_t^{(1)} - IP_t}
+$$ {#eq-order}
+
+\rev{
+This deterministic policy provides a realistic baseline aligned with current ordering practice at the facility level.
+}
+
+### Policy 2: quantile-based order-up-to level (uncertainty-aware base-stock) {.unnumbered}
+
+\rev{
+In FPSC settings, demand is inherently uncertain due to factors such as reporting delays, irregular ordering behaviours, and intermittent service disruptions} [@hewage2025]. \rev{Underestimating demand can result in severe stockouts, directly affecting contraceptive availability and user satisfaction} [@karimi2021]. \rev{To buffer against this uncertainty, we enhance the deterministic policy by incorporating *forecast uncertainty* from the forecast distribution.
+
+Instead of targeting the mean or a single point forecast, the order-up-to level is set using an upper quantile of the forecast distribution. Let $Q^{(\alpha)}_t$ denote the $\alpha$-level quantile of the predictive distribution of demand over the lead time (here one month), obtained using conformal prediction. The target stock level becomes:
+}
+
+$$
+U_t^{(2)} = Q^{(\alpha)}_t
+$$ {#eq-quantile}
+
+\rev{The resulting order quantity is: }
+
+$$
+q_t^{(2)} = \max{0, U_t^{(2)} - IP_t}
+$$ {#eq-order_qnt}
+
+\rev{
+We evaluate this policy across several quantile levels ($\alpha = 0.80, 0.85, 0.90, 0.95$), which correspond to different implicit service-level targets. This allows us to assess how conservatively facilities must buffer stock to mitigate demand risk.
+}
+
+### Policy 3: myopic lost-sales policy {.unnumbered}
+
+\rev{
+To benchmark against heuristics designed for *lost-sales* systems, we include a myopic (one-period) policy that selects the order-up-to target by balancing inventory holding against the consequences of a stockout in the next period} [@bijvank2011; @zipkin2008]. \rev{Let $h$ denote a per-unit holding penalty for carrying one unit of inventory for one month, and let $p$ denote a per-unit penalty for a lost sale. Under a one-period approximation, the cost-balanced target corresponds to the critical fractile:
+}
+
+$$
+U_t^{(3)} = F_t^{-1}\!\left(\frac{p}{p+h}\right)
+$$ {#eq-ut3}
+
+$$
+q_t^{(3)} = \max\{0,\ U_t^{(3)} - IP_t\}
+$$ {#eq-qt3}
+
+\rev{
+where $F_t$ is the predictive CDF of lead-time demand (here one month). In implementation, we approximate $F_t$ using the predictive distribution implied by conformal prediction, so the target is obtained as a quantile of the forecast distribution.
+
+Facility-level monetary cost parameters are not available in our setting. We therefore implement this benchmark using *normalized* penalty-to-holding ratios $\kappa = p/h$, which determine the ordering fractile via $\alpha = \kappa/(1+\kappa)$. Motivated by the service-critical nature of contraceptive availability, we consider a small grid $\kappa \in \{5,10,20\}$, corresponding to $\alpha \in \{0.83, 0.91, 0.95\}$. This provides a transparent lost-sales benchmark that reflects different degrees of stockout aversion while remaining comparable across products and facilities.
+}
+
+### Policy 4: oracle benchmark policy (upper bound) {.unnumbered}
+
+\rev{
+To provide an upper bound on achievable inventory performance under the same lead time and lost-sales dynamics, we include an *oracle* benchmark. The oracle is not implementable in practice; rather, it provides a best-case reference that has access to information unavailable to decision makers} [@sachs2014].
+
+\rev{We consider an oracle that has access to the *latent (true) demand* process $D_t^*$. Under $L=1$, a simple and transparent oracle target is the next-period latent demand:
+}
+
+$$
+U_t^{(5)} = D_{t+1}^*,
+\qquad
+q_t^{(5)} = \max{0, U_t^{(5)} - IP_t}
+$$ {#eq-ut5}
+
+\rev{
+This oracle benchmark provides a ceiling on performance and allows us to quantify how close forecast-driven policies come to a best-case ordering rule under perfect demand information.
+}

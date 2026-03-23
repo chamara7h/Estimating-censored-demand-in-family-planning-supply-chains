@@ -1,0 +1,272 @@
+## Section 7: Healthcare impact: illustrative case {#sec-appendix7 .unnumbered}
+
+```{r}
+#| label: tbl-num_healtcare_1
+#| tbl-cap: "Public health impact metrics from the numerical experiment, translating relative stockout rates into estimated losses in mCRP, users, unintended pregnancies, abortions, and infant deaths. Estimates assume a population of 100,000 women of reproductive age and 10 contraceptive products. (Part 1)"
+
+method_count <- 10
+wra_population <- 100000
+
+
+healthcare_impact_num <- inv_metrics_num_summary |> 
+  filter(!policy %in% c('oracle', 'capped')) |> 
+  select(model, policy, stockout_rate) |> 
+  distinct() |> 
+  left_join(inv_metrics_num_summary |> 
+              filter(model == 'TCKF') |> 
+              select(policy, stockout_rate) |> 
+              distinct() |> 
+              rename(stockout_rate_bench = stockout_rate),
+            by = c('policy')) |> 
+  mutate(mcpr_loss = round(0.065 * method_count * (stockout_rate - stockout_rate_bench),3),
+         users_lost = mcpr_loss * wra_population,
+         maternal_deaths = users_lost / 3153,
+         infant_deaths = users_lost / 251,
+         abortions = users_lost / 6.46,
+         unintended_pregnancies = users_lost / 3.63)
+
+
+df_rel_num <- healthcare_impact_num |>
+  group_by(policy, model) |>
+  summarise(mcpr_loss = round(mean(mcpr_loss, na.rm = TRUE), 3),
+            users_lost = round(mean(users_lost, na.rm = TRUE)),
+            infant_deaths = round(mean(infant_deaths, na.rm = TRUE)),
+            abortions  = round(mean(abortions, na.rm = TRUE)),
+            unintended_pregnancies = round(mean(unintended_pregnancies, na.rm = TRUE)),
+            .groups = 'drop')
+
+
+df_rel_num_wide <- df_rel_num |>
+  filter(!policy %in% c('capped', 'oracle', 
+                                   'upper_q80', 'upper_q85', 'upper_q90', 'upper_q95')) |> 
+  distinct() |> 
+  mutate(policy = factor(policy,
+                        levels = c("deterministic", 'myopic (k=5)', 'myopic (k=10)', 'myopic (k=20)'))) |> 
+  pivot_wider(
+    id_cols    = model,
+    names_from = policy,
+    values_from = c(mcpr_loss, users_lost, infant_deaths, abortions, unintended_pregnancies),
+    names_glue = "{.value}_{policy}"  
+  ) %>% 
+  {
+    cols <- colnames(.)
+    pols <- unique(sub("^(mcpr_loss_|users_lost_|infant_deaths_|abortions_|unintended_pregnancies_)", "", cols[!cols %in% "model"]))
+    ord  <- c("model", as.vector(rbind(paste0("mcpr_loss_", pols), paste0("users_lost_", pols), paste0("infant_deaths_", pols), paste0("abortions_", pols), paste0("unintended_pregnancies_", pols))))
+    select(., all_of(ord))
+  }
+
+colnames(df_rel_num_wide) <- c(
+  "Method",
+  # deterministic
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # myopic (k=5)
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # myopic (k=10)
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # myopic (k=20)
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies'
+)
+
+df_rel_num_wide |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(font_size = 5, latex_options = "scale_down") |>
+  landscape() |>
+  column_spec(1, width = "8em") |>
+  column_spec(2:21, width = "4em") |> 
+  add_header_above(c(
+    " " = 1,
+    "Deterministic" = 5,
+    "Myopic (k=5)" = 5,
+    "Myopic (k=10)" = 5,
+    "Myopic (k=20)" = 5
+  ))
+
+```
+
+```{r}
+#| label: tbl-num_healtcare_2
+#| tbl-cap: "Public health impact metrics from the numerical experiment, translating relative stockout rates into estimated losses in mCRP, users, unintended pregnancies, abortions, and infant deaths. Estimates assume a population of 100,000 women of reproductive age and 10 contraceptive products. (Part 2)"
+
+df_rel_num_wide <- df_rel_num |>
+  filter(!policy %in% c('capped', 'oracle', "deterministic", 'myopic (k=5)', 'myopic (k=10)', 'myopic (k=20)')) |> 
+  distinct() |> 
+  mutate(policy = factor(policy,
+                        levels = c('upper_q80', 'upper_q85', 'upper_q90', 'upper_q95'))) |> 
+  pivot_wider(
+    id_cols    = model,
+    names_from = policy,
+    values_from = c(mcpr_loss, users_lost, infant_deaths, abortions, unintended_pregnancies),
+    names_glue = "{.value}_{policy}"  
+  ) %>% 
+  {
+    cols <- colnames(.)
+    pols <- unique(sub("^(mcpr_loss_|users_lost_|infant_deaths_|abortions_|unintended_pregnancies_)", "", cols[!cols %in% "model"]))
+    ord  <- c("model", as.vector(rbind(paste0("mcpr_loss_", pols), paste0("users_lost_", pols), paste0("infant_deaths_", pols), paste0("abortions_", pols), paste0("unintended_pregnancies_", pols))))
+    select(., all_of(ord))
+  }
+
+colnames(df_rel_num_wide) <- c(
+  "Method",
+  # upper_q80
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # upper_q85
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # upper_q90
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # upper_q95
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies'
+)
+
+df_rel_num_wide |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(font_size = 5, latex_options = "scale_down") |>
+  landscape() |>
+  column_spec(1, width = "8em") |>
+  column_spec(2:21, width = "4em") |> 
+  add_header_above(c(
+    " " = 1,
+    "Quantile 80" = 5,
+    "Quantile 85" = 5,
+    "Quantile 90" = 5,
+    "Quantile 95" = 5
+  ))
+
+```
+
+
+```{r}
+#| label: tbl-emp_healtcare_1
+#| tbl-cap: "Healthcare impact metrics from the empirical evaluation, translating relative stockout rates into estimated losses in mCRP, users, unintended pregnancies, abortions, and infant deaths. Estimates use a population of 1,590,000 women of reproductive age and 9 contraceptive products in Côte d'Ivoire. (Part 1)"
+
+method_count <- 9
+wra_population <- 1590000
+
+
+healthcare_impact_emp <- inv_metrics_emp_summary |> 
+  select(model, policy, stockout_rate) |> 
+  filter(!policy %in% c('capped', 'oracle')) |> 
+  distinct() |> 
+  left_join(inv_metrics_emp_summary |> 
+              filter(model == 'TCKF') |> 
+              select(policy, stockout_rate) |> 
+              distinct() |> 
+              rename(stockout_rate_bench = stockout_rate),
+            by = c('policy')) |> 
+  mutate(mcpr_loss = round(0.065 * method_count * (stockout_rate - stockout_rate_bench),3),
+         users_lost = mcpr_loss * wra_population,
+         maternal_deaths = users_lost / 3153,
+         infant_deaths = users_lost / 251,
+         abortions = users_lost / 6.46,
+         unintended_pregnancies = users_lost / 3.63)
+
+
+df_rel_emp <- healthcare_impact_emp |>
+  group_by(policy, model) |>
+  summarise(stockout_rate = round(mean(stockout_rate, na.rm = TRUE), 2),
+            stockout_rate_bench = round(mean(stockout_rate_bench, na.rm = TRUE), 2),
+            mcpr_loss = round(mean(mcpr_loss, na.rm = TRUE), 3),
+            users_lost = round(mean(users_lost, na.rm = TRUE)),
+            infant_deaths = round(mean(infant_deaths, na.rm = TRUE)),
+            abortions  = round(mean(abortions, na.rm = TRUE)),
+            unintended_pregnancies = round(mean(unintended_pregnancies, na.rm = TRUE)),
+            .groups = 'drop')
+
+
+df_rel_emp_wide <- df_rel_emp |>
+  filter(!policy %in% c('capped', 'oracle', 
+                                   'upper_q80', 'upper_q85', 'upper_q90', 'upper_q95')) |> 
+  distinct() |> 
+  mutate(policy = factor(policy,
+                        levels = c("deterministic", 'myopic (k=5)', 'myopic (k=10)', 'myopic (k=20)'))) |> 
+  pivot_wider(
+    id_cols    = model,
+    names_from = policy,
+    values_from = c(mcpr_loss, users_lost, infant_deaths, abortions, unintended_pregnancies),
+    names_glue = "{.value}_{policy}"  
+  ) %>% 
+  {
+    cols <- colnames(.)
+    pols <- unique(sub("^(mcpr_loss_|users_lost_|infant_deaths_|abortions_|unintended_pregnancies_)", "", cols[!cols %in% "model"]))
+    ord  <- c("model", as.vector(rbind(paste0("mcpr_loss_", pols), paste0("users_lost_", pols), paste0("infant_deaths_", pols), paste0("abortions_", pols), paste0("unintended_pregnancies_", pols))))
+    select(., all_of(ord))
+  }
+
+colnames(df_rel_emp_wide) <- c(
+  "Method",
+  # deterministic
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # myopic (k=5)
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # myopic (k=10)
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # myopic (k=20)
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies'
+)
+
+df_rel_emp_wide |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(font_size = 5, latex_options = "scale_down") |>
+  landscape() |>
+  column_spec(1, width = "8em") |>
+  column_spec(2:21, width = "4em") |> 
+  add_header_above(c(
+    " " = 1,
+    "Deterministic" = 5,
+    "Myopic (k=5)" = 5,
+    "Myopic (k=10)" = 5,
+    "Myopic (k=20)" = 5
+  ))
+
+```
+
+
+```{r}
+#| label: tbl-emp_healtcare
+#| tbl-cap: "Healthcare impact metrics from the empirical evaluation, translating relative stockout rates into estimated losses in mCRP, users, unintended pregnancies, abortions, and infant deaths. Estimates use a population of 1,590,000 women of reproductive age and 9 contraceptive products in Côte d'Ivoire."
+
+
+df_rel_emp_wide <- df_rel_emp |>
+  filter(!policy %in% c('capped', 'oracle', "deterministic", 'myopic (k=5)', 'myopic (k=10)', 'myopic (k=20)')) |> 
+  distinct() |> 
+  mutate(policy = factor(policy,
+                        levels = c('upper_q80', 'upper_q85', 'upper_q90', 'upper_q95'))) |> 
+  pivot_wider(
+    id_cols    = model,
+    names_from = policy,
+    values_from = c(mcpr_loss, users_lost, infant_deaths, abortions, unintended_pregnancies),
+    names_glue = "{.value}_{policy}"  
+  ) %>% 
+  {
+    cols <- colnames(.)
+    pols <- unique(sub("^(mcpr_loss_|users_lost_|infant_deaths_|abortions_|unintended_pregnancies_)", "", cols[!cols %in% "model"]))
+    ord  <- c("model", as.vector(rbind(paste0("mcpr_loss_", pols), paste0("users_lost_", pols), paste0("infant_deaths_", pols), paste0("abortions_", pols), paste0("unintended_pregnancies_", pols))))
+    select(., all_of(ord))
+  }
+
+colnames(df_rel_emp_wide) <- c(
+  "Method",
+  # upper_q80
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # upper_q85
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # upper_q90
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies',
+  # upper_q95
+  'Rel mCRP Loss (%)', 'Rel Users Loss', 'Rel Infant Deaths', 'Rel Abortions', 'Rel Unintended Pregnancies'
+)
+
+df_rel_emp_wide |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(font_size = 5, latex_options = "scale_down") |>
+  landscape() |>
+  column_spec(1, width = "8em") |>
+  column_spec(2:21, width = "4em") |> 
+  add_header_above(c(
+    " " = 1,
+    "Quantile 80" = 5,
+    "Quantile 85" = 5,
+    "Quantile 90" = 5,
+    "Quantile 95" = 5
+  ))
+
+```
