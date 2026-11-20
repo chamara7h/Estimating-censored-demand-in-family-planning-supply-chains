@@ -1,0 +1,20 @@
+```{r}
+#| label: tbl-literature_wp2
+#| echo: false
+#| cache: false
+#| tbl-cap: "Overview of the literature summary."
+
+read_csv(project_path("writings/pom/tables/lr_tbl.csv")) |>
+  rename_with(~ gsub("Censorship", "Censoring", .x, fixed = TRUE)) |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(latex_options = c("scale_down", "repeat_header"), font_size = 6) |>
+  # kable_styling(latex_options = c("scale_down", "repeat_header"), font_size = 6) |> # for pom
+  column_spec(1, "8em") |>
+  column_spec(2, "12em") |>
+  column_spec(3, "12em") |> 
+  column_spec(4, "12em") |>
+  column_spec(5, "12em") |>
+  column_spec(6, "8em")
+
+
+```

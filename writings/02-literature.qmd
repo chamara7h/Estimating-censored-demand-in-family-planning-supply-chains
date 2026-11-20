@@ -1,0 +1,25 @@
+# Research background {#sec-lit_wp2}
+
+## The lost sales problem in FPSC
+
+Lost sales are a defining challenge in family planning supply chains, where unmet demand due to stockouts or service interruptions often goes unrecorded [@bijvank2011; @trapero2024]. Most empirical work focuses on the frequency and operational causes of stockouts [@morgan2014; @karimi2021], while planning tools often continue to treat recorded consumption as complete [@family_planning_logistics_management_fplm_contraceptive_2000; @hewage2025]. This leaves open the question of how censored demand affects forecasting and replenishment decisions.
+
+## Forecasting decisions under lost sales
+
+The issue of censored demand was formally recognised in the forecasting literature with the Tobit model introduced by @tobin1958. Subsequent approaches used exponential smoothing, auxiliary information or adjustments to observed sales to approximate lost demand [@nahmias1994; @lau1996; @hyndman_forecasting_2008]. Their application in FPSC depends on the availability of auxiliary information or reliable observations from fully stocked periods.
+
+More recently, general-purpose models have been proposed to address the lost sales forecasting problem more rigorously [@wangxu2025]. The Tobit Kalman Filter (TKF), introduced by @trapero2024, integrates state-space modelling with censoring logic, treating observed sales as censored manifestations of latent demand. TKF captures dynamics such as trend, seasonality, and external shocks while allowing for time-varying censoring levels, something earlier models failed to accommodate. Simulation studies have shown that TKF reduces lost sales and improves service levels compared to previous heuristic methods.
+
+In parallel, the Tobit Exponential Smoothing (TETS) model extends exponential smoothing to censored time series using innovations state space modelling [@pedregal; @pedregal2026]. TETS is capable of handling different data frequencies and temporal hierarchies, making it suitable for retail and health systems where inventory reviews and sales occur on different time scales. Despite their robustness, models like TKF and TETS have not yet been applied in FPSC contexts. Although TKF and TETS address data censoring, they do not explicitly account for the severe quality issues, discontinuities, and erratic behaviors in real-world FPSC data.
+
+## Inventory decisions under lost sales
+
+Inventory control under lost sales remains analytically challenging, especially with positive lead times and unobserved demand [@bijvank2011; @heese2010]. Distribution-free and learning-based methods have been used to infer lost demand or guide replenishment under uncertainty [@sachs2014; @godfrey2001; @zheng2026]. More recent work links probabilistic forecasts to inventory decisions and shows how decision-aware methods can support the allocation of essential medicines under limited and noisy data [@chung2026].
+
+## Literature review gap summary
+
+Existing research has advanced censored-demand forecasting and inventory control, but their integration remains limited, particularly in FPSC. Forecasts are often evaluated on statistical accuracy without assessing their implications for availability and unmet demand, while inventory models may assume demand is fully observed [@babai2025]. Some studies have explicitly considered both dimensions, highlighting the importance of evaluating forecasting methods not only in terms of statistical accuracy but also their inventory implications [e.g., @babai2020]. This study examines how distinguishing stockouts from service interruptions and calibrating forecast uncertainty can support replenishment decisions. We evaluate forecast and inventory performance and translate stockout exposure into potential contraceptive-access consequences. @tbl-literature_wp2 summarises how the framework relates to existing approaches, distinguishing its forecasting features from its downstream evaluation.
+
+```{r}
+#| child: !expr child_path("02-section_2_tbl_literature.qmd")
+```

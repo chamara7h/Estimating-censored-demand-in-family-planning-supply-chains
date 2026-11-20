@@ -1,0 +1,170 @@
+```{r}
+#| label: fig-ts_feat2_wp2
+#| out.width: "75%"
+#| fig-width: 16
+#| fig-height: 10
+#| fig-cap: "Time-series characteristics of the real-world dataset used in the empirical evaluation. (a) Representative time series for each demand type; (b) Distribution of time series by trend and seasonality strength and; (c) Intermittency classification based on IDI and $CV^2$ thresholds."
+
+selected <- tibble(
+  site_code = c("C2062", "C1073", "C4026", "C4061", "C1101", 'C2070'),
+  product_code = c("AS27000", "AS27133", "AS27133", "AS27138", "AS27137", 'AS46000')
+)
+
+# grab the full time‐slice for those series
+
+plot_df <- stock_tsb |>
+  semi_join(selected, by = c("site_code","product_code")) |> 
+  group_by(site_code, product_code) |>
+  arrange(date) |>
+  mutate(period = row_number()) |>
+  ungroup()
+
+
+# build shading rectangles for each contiguous run of censoring
+
+shade_df <- plot_df |>
+  as_tibble() |> 
+  arrange(site_code, product_code, period) |>
+  group_by(site_code, product_code) |>
+  mutate(
+    run_id = cumsum(
+      c(TRUE, censorship_type[-1] != censorship_type[-n()])  
+    )
+  ) |>
+  group_by(site_code, product_code, run_id, censorship_type) |>
+  summarize(start = min(period), end = max(period), .groups = "drop") |>
+  filter(censorship_type != "none")
+
+# plot
+
+p1 <- ggplot() +
+  geom_rect(
+    data = shade_df,
+    aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, fill = censorship_type), 
+    inherit.aes = FALSE, alpha = 0.25) +
+  
+  geom_rect(data = shade_df |> 
+              filter(start == end),
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, colour = censorship_type),
+            inherit.aes = FALSE, fill = NA,
+            size = 0.5, alpha = 0.05, show.legend = FALSE) +
+  
+  geom_line(data = plot_df,
+            aes(x = period, y = stock_distributed, colour = "Stock distributed"),
+            size = 0.7) +
+  
+  facet_wrap(~site_code, nrow = 2, scales = 'free') +
+  
+  scale_fill_manual(name = "Censoring type", values = c(censored = "#E69F00", disruption = "#0072B2"),
+                    labels = c(censored   = "Stockout", disruption = "Interruption")) +
+  
+  scale_colour_manual(name   = " ", values = c("Stock distributed" = "black", censored = "#E69F00", disruption = "#0072B2"),
+                      breaks = ("Stock distributed")) +
+  
+  labs(x = "Month", y = "Qty", title = '(a)') +
+  theme_minimal(base_family = "sans", base_size = 16) +
+    theme(
+        panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+        panel.grid.major = element_line(colour = "grey92", size = 0.35),
+        panel.grid.minor = element_blank(),
+        
+        axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.text.x      = element_text(colour = "#1a2b48"),
+        axis.text.y      = element_text(colour = "#1a2b48"),
+        
+        legend.position  = "right",
+        legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+        legend.text      = element_text(colour = "#1a2b48"),
+        
+        plot.title       = element_text(colour = "#1a2b48")
+    )
+
+# ts feat
+
+p2 <- stock_feat |>
+  ggplot(mapping = aes(x= trend_strength, y = seasonal_strength_year, color = product_code)) +
+  geom_point(size = 1, alpha = 0.75) + 
+  labs(x = "Strength of trend", y = "Strength of seasonality", color = 'Product code', title = '(b)') +
+  scale_color_viridis_d(option = "D") + # Use the viridis palette
+  theme_minimal(base_family = "sans", base_size = 16) +
+    theme(
+        panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+        panel.grid.major = element_line(colour = "grey92", size = 0.35),
+        panel.grid.minor = element_blank(),
+        
+        axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.text.x      = element_text(colour = "#1a2b48"),
+        axis.text.y      = element_text(colour = "#1a2b48"),
+        
+        legend.position  = "right",
+        legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+        legend.text      = element_text(colour = "#1a2b48"),
+        
+        plot.title       = element_text(colour = "#1a2b48")
+    )
+
+# cv2
+
+p3 <- idi_cv2 |>
+  ggplot(mapping = aes(x= IDI, y = CV2, color = product_code)) +
+  geom_point(size = 1, alpha = 0.75) + 
+  # threshold lines
+  geom_vline(xintercept = 4/3, linetype = "dashed") +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+
+  # add text labels right next to the lines
+  annotate("text",
+           x    = 4/3,
+           y    = 8,
+           label = "IDI = 4/3",
+           hjust = -0.1,          # nudge it just to the right
+           vjust =  0,          # and align at the top
+           size  = 4,
+           family = "sans") +
+  annotate("text",
+           x    = 10,
+           y    = 1,
+           label = "CV² = 0.5",
+           hjust =  1.1,          # nudge it to the right edge
+           vjust = 1.1,          # nudge it a bit above the line
+           size  = 4,
+           family = "sans") +
+
+  # force the axes to include those exact ticks
+  scale_x_continuous(breaks = scales::extended_breaks()(c(0, max(idi_cv2$IDI))),
+                     minor_breaks = NULL) +
+  scale_y_continuous(breaks = scales::extended_breaks()(c(0, max(idi_cv2$CV2))),
+                     minor_breaks = NULL) +
+
+  labs(x = "IDI",
+       y = expression(CV^2),
+       title = '(c)') +
+  scale_color_viridis_d(option = "D", guide = FALSE) + # Use the viridis palette
+  theme_minimal(base_family = "sans", base_size = 16) +
+    theme(
+        panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+        panel.grid.major = element_line(colour = "grey92", size = 0.35),
+        panel.grid.minor = element_blank(),
+        
+        axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.text.x      = element_text(colour = "#1a2b48"),
+        axis.text.y      = element_text(colour = "#1a2b48"),
+        
+        legend.position  = "right",
+        legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+        legend.text      = element_text(colour = "#1a2b48"),
+        
+        plot.title       = element_text(colour = "#1a2b48")
+    ) +
+  coord_cartesian(xlim = c(0, 10))
+
+p1 / (p2 | p3) +
+  plot_layout(guides = "collect") +
+  theme(legend.position = "right")
+
+
+
+```

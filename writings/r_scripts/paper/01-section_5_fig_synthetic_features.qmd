@@ -1,0 +1,207 @@
+```{r}
+#| label: fig-ts_feat1_wp2
+#| out.width: "75%"
+#| fig-width: 16
+#| fig-height: 10
+#| fig-pos: "htbp"
+#| fig-cap: "Time-series characteristics of the synthetic dataset used in the numerical experiment; (a) Representative time series; (b) distribution of series by trend and seasonality strength; (c) intermittency classification using IDI and $CV^2$ thresholds."
+
+
+# pick one series per (category × type)
+
+synthetic_tsb <- read_rds(project_path("data/tidy_data/synthetic_data.rds"))
+
+idi_stat <- function(x){
+  nz <- which(x > 0); if (length(nz) < 2) return(NA_real_); mean(diff(nz))
+}
+cv2_pos <- function(x){
+  y <- x[x > 0]; if (length(y) < 2) return(NA_real_); (sd(y)/mean(y))^2
+}
+
+synthetic_feat <- synthetic_tsb |>
+  features(observed_demand, feat_stl)
+
+idi_cv2 <- synthetic_tsb  |> 
+  as_tibble()  |>   
+  group_by(series_category, series_type, store, product) |> 
+  summarise(
+    IDI = idi_stat(observed_demand),   
+    CV2 = cv2_pos(observed_demand),
+    .groups = "drop"
+  )
+
+selected <- tibble(
+  store = c("S84", "S7", "S48"),
+  product = c("P3", "P10", "P4")
+)
+
+# grab the full time‐slice for those series
+
+plot_df <- synthetic_tsb |>
+  semi_join(selected, by = c("store","product")) |> 
+  group_by(store, product) |>
+  arrange(date) |>
+  mutate(period = row_number()) |>
+  ungroup()
+
+
+# build shading rectangles for each contiguous run of censoring
+
+shade_df <- plot_df |>
+  as_tibble() |> 
+  arrange(store, product, period) |>
+  group_by(store, product) |>
+  mutate(
+    run_id = cumsum(
+      c(TRUE, censorship_type[-1] != censorship_type[-n()])  
+    )
+  ) |>
+  group_by(store, product, run_id, censorship_type) |>
+  summarize(start = min(period), end = max(period), .groups = "drop") |>
+  filter(censorship_type != "none")
+
+# plot
+
+p1 <- ggplot() +
+  geom_rect(
+    data = shade_df,
+    aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, fill = censorship_type), 
+    inherit.aes = FALSE, alpha = 0.25) +
+  
+  geom_rect(data = shade_df |>
+              filter(start == end),
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, colour = censorship_type),
+            inherit.aes = FALSE, fill = NA,
+            size = 0.5, alpha = 0.05, show.legend = FALSE) +
+  
+  geom_line(data = plot_df,
+            aes(x = period, y = actual_demand, colour = "Actual", linetype = "Actual"),
+            linewidth = 0.75) +
+  
+  geom_line(data = plot_df,
+            aes(x = period, y = observed_demand, colour = "Observed", linetype = "Observed"),
+            linewidth = 0.75) +
+  
+  facet_wrap(~product, scales = "free_y", ncol = 1) +
+  
+  scale_fill_manual(
+    name = "Censoring type",
+    values = c(censored = "#E69F00", disruption = "#0072B2"),
+    labels = c(censored = "Stockout", disruption = "Interruption")) +
+  
+  scale_colour_manual(name = "Demand", 
+                      values = c(Actual = "black", Observed = "red", censored = "#E69F00", disruption = "#0072B2"),
+                      breaks = c("Actual", "Observed")) +
+  
+  scale_linetype_manual(name = "Demand",values = c(Actual = "solid", Observed = "dashed")) +
+  
+  labs(x = "Month", y = "Demand", title = '(a)') +
+  theme_minimal(base_family = "sans", base_size = 16) +
+    theme(
+        panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+        panel.grid.major = element_line(colour = "grey92", size = 0.35),
+        panel.grid.minor = element_blank(),
+        
+        axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.text.x      = element_text(colour = "#1a2b48"),
+        axis.text.y      = element_text(colour = "#1a2b48"),
+        
+        legend.position  = "right",
+        legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+        legend.text      = element_text(colour = "#1a2b48"),
+        
+        plot.title       = element_text(colour = "#1a2b48")
+    )
+
+# ts feat
+
+p2 <- synthetic_feat |>
+  mutate(product = factor(product,
+                          levels = c('P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10'))) |> 
+  ggplot(mapping = aes(x= trend_strength, y = seasonal_strength_year, color = product)) +
+  geom_point(size = 1, alpha = 0.75) + 
+  labs(x = "Strength of trend", y = "Strength of seasonality", color = 'Product code', title = '(b)') +
+  scale_color_viridis_d(option = "D") + 
+  theme_minimal(base_family = "sans", base_size = 16) +
+    theme(
+        panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+        panel.grid.major = element_line(colour = "grey92", size = 0.35),
+        panel.grid.minor = element_blank(),
+        
+        axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.text.x      = element_text(colour = "#1a2b48"),
+        axis.text.y      = element_text(colour = "#1a2b48"),
+        
+        legend.position  = "right",
+        legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+        legend.text      = element_text(colour = "#1a2b48"),
+        
+        plot.title       = element_text(colour = "#1a2b48")
+    )
+
+# cv2
+
+p3 <- idi_cv2 |>
+  mutate(product = factor(product,
+                          levels = c('P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10'))) |> 
+  ggplot(mapping = aes(x= IDI, y = CV2, color = product)) +
+  geom_point(size = 1, alpha = 0.75) + 
+  # threshold lines
+  geom_vline(xintercept = 4/3, linetype = "dashed") +
+  geom_hline(yintercept = 0.5, linetype = "dashed") +
+
+  # add text labels right next to the lines
+  annotate("text",
+           x    = 4/3,
+           y    = 20,
+           label = "IDI = 4/3",
+           hjust = -0.1,          # nudge it just to the right
+           vjust =  0,          # and align at the top
+           size  = 4,
+           family = "sans") +
+  annotate("text",
+           x    = max(idi_cv2$IDI, na.rm = TRUE),
+           y    = 2.5,
+           label = "CV² = 0.5",
+           hjust =  1.1,          # nudge it to the right edge
+           vjust = 1.1,          # nudge it a bit above the line
+           size  = 4,
+           family = "sans") +
+
+  # force the axes to include those exact ticks
+  scale_x_continuous(breaks = scales::extended_breaks()(c(0, max(idi_cv2$IDI))),
+                     minor_breaks = NULL) +
+  scale_y_continuous(breaks = scales::extended_breaks()(c(0, max(idi_cv2$CV2))),
+                     minor_breaks = NULL) +
+
+  labs(x = "IDI",
+       y = expression(CV^2),
+       title = '(c)') +
+  scale_color_viridis_d(option = "D", guide = FALSE) + # Use the viridis palette
+  theme_minimal(base_family = "sans", base_size = 16) +
+    theme(
+        panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+        panel.grid.major = element_line(colour = "grey92", size = 0.35),
+        panel.grid.minor = element_blank(),
+        
+        axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+        axis.text.x      = element_text(colour = "#1a2b48"),
+        axis.text.y      = element_text(colour = "#1a2b48"),
+        
+        legend.position  = "right",
+        legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+        legend.text      = element_text(colour = "#1a2b48"),
+        
+        plot.title       = element_text(colour = "#1a2b48")
+    ) +
+  coord_cartesian(ylim = c(0, 22))
+
+p1 / (p2 | p3) +  
+  plot_layout(guides = "collect") +
+  theme(legend.position = "right")
+
+
+```

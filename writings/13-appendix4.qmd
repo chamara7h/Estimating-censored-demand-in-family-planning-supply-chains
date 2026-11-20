@@ -1,0 +1,149 @@
+\pagebreak
+
+## Section 5: Performance metrics {#sec-appendix_wp2_4}
+
+### Forecast metrics 
+
+To evaluate the performance of the benchmark forecasting methods in a way that is both interpretable and operationally meaningful, we use relative metrics for point forecasts and skill scores for probabilistic forecasts. This approach allows us to compare each model against the proposed TCKF benchmark while remaining robust to scale differences across series.
+
+For point forecasts, we use the *Relative Root Mean Squared Error (Rel RMSE)*, which quantifies how much better or worse a method performs relative to TCKF:
+
+$$
+Rel\ RMSE = \frac{RMSE_{\text{Method}}}{RMSE_{\text{TCKF}}}
+$$ {#eq-relrmse}
+
+Values below 1 indicate better performance than TCKF, while values above 1 indicate worse performance [@davydenko2013]. The RMSE is defined as:
+
+$$
+RMSE = \sqrt{\frac{1}{n} \sum_{t=1}^{n} (\hat{y}_t - y_t)^2}
+$$ {#eq-rmse}
+
+where $\hat{y}_t$ is the forecast and $y_t$ is the actual observed value [@hyndman2021forecasting].
+
+To make this more interpretable, we convert Rel RMSE into a *Forecast Value Added (FVA)* score [@gilliland2008fva]:
+
+$$
+FVA = (1 - Rel\ RMSE) \times 100\%
+$$ {#eq-fva_1}
+
+For interval forecasts, we use *Pinball Loss*, which is particularly suited for evaluating prediction intervals. In FPSC settings, where service levels are critical, this scoring rule penalises both *underprediction* and *overprediction* asymmetrically, making it well-aligned with our goal of reliable and calibrated uncertainty estimates [@kolassa2023].
+
+The pinball loss at time $t$ for quantile level $p$ is defined as:
+
+$$
+Q_{p,t} =
+\begin{cases}
+2(1 - p)(\hat{f}_{p,t} - y_t), & \text{if } y_t < \hat{f}_{p,t} \\
+2p(y_t - \hat{f}_{p,t}), & \text{if } y_t \geq \hat{f}_{p,t}
+\end{cases}
+$$ {#eq-pinball}
+
+where $\hat{f}_{p,t}$ is the predicted quantile at level $p$, and $y_t$ is the actual observed value. Lower values indicate sharper, better-calibrated intervals [@hyndman2021forecasting].
+
+To assess improvements relative to TCKF, we use the *Pinball Loss Skill Score* [@hyndman2021forecasting]:
+
+$$
+\text{Skill Score} = \frac{\text{Pinball Score}_{\text{TCKF}} - \text{Pinball Score}_{\text{Method}}}{\text{Pinball Score}_{\text{TCKF}}} \times 100\%
+$$ {#eq-skill}
+
+### Price proxies for empirical data
+
+```{r}
+#| child: !expr child_path("02-appendix_4_tbl_price_proxies.qmd")
+```
+
+### Public health indicators 
+
+In FPSC, a shortage of contraceptives does not merely disrupt service delivery; it directly contributes to avoidable pregnancies, maternal and infant complications, and lost opportunities for system-wide impact [@karimi2021]. To quantify this, we adopt a public health impact framework adapted from the RH Supplies Impact Calculator[^2_wp2]. This model links changes in contraceptive availability to shifts in modern contraceptive prevalence rate (mCPR)[^3_wp2], drawing on empirical estimates from @karim2008measuring, @wang_how_2012, and @ross2012use. Based on these studies, @rosen2018modeling estimate that the addition of one method can increase mCPR by 6.5 percentage points.
+
+[^2_wp2]: RHSC Impact Calculator: <https://www.rhsupplies.org/activities-resources/tools/reducing-stockouts-impact-calculator>
+
+[^3_wp2]: Percentage of women of reproductive age using modern contraceptive methods.
+
+Under the RHSC logic, reducing stockouts increases method availability, which in turn raises contraceptive use. We therefore express the change in mCPR relative to the TCKF benchmark as:
+
+$$
+\Delta mCPR = 0.065 \times M \times (SOR_{\text{TCKF}} - SOR_{\text{Method}}),
+$$ {#eq-mcrp}
+
+where $M$ is the number of distinct methods considered. The corresponding change in users is:
+
+$$
+\text{Users Gained} = \Delta mCPR \times \text{WRA Population},
+$$ {#eq-ul}
+
+where $\text{WRA Population}$ is the number of women of reproductive age. To estimate downstream outcomes, we apply conversion factors from the Adding It Up study [@Singh2009]:
+
+-   Maternal deaths averted: $\frac{\text{Users Gained}}{3153}$
+-   Infant deaths averted: $\frac{\text{Users Gained}}{251}$
+-   Abortions averted: $\frac{\text{Users Gained}}{6.46}$
+-   Unintended pregnancies averted: $\frac{\text{Users Gained}}{3.63}$
+
+### Inventory metrics and relative mCPR loss
+
+
+In addition to forecast accuracy, we evaluate whether the forecasts lead to better inventory decisions. We focus on the trade-off between product availability, unmet demand, and inventory burden.
+
+In the numerical experiment, true demand is known. Therefore, we calculate achieved CSL as the proportion of periods where opening stock is sufficient to meet demand:
+
+$$
+CSL = \frac{1}{N}\sum_{i,t} \mathbb{I}\left(S_{i,t}^{open} \geq D_{i,t}\right)
+$$ {#eq-csl}
+
+where $D_{i,t}$ is the true demand and $S_{i,t}^{open}$ is the opening stock. We also calculate lost demand as
+
+$$
+L_{i,t} = \max(D_{i,t} - S_{i,t}^{open},0)
+$$ {#eq-ld}
+
+and report the lost-demand rate as
+
+$$
+LDR = \frac{\sum_{i,t} L_{i,t}}{\sum_{i,t} D_{i,t}}
+$$ {#eq-ldr}
+
+Inventory burden is measured using average opening inventory:
+
+$$
+\bar{S}^{open} = \frac{1}{N}\sum_{i,t} S_{i,t}^{open}
+$$ {#eq-avg_inv}
+
+In the empirical experiment, true demand is not observed during stockouts and service interruptions. Therefore, the simulated inventory evaluation is calculated over uncensored observations, where recorded stock distributed is treated as observed demand. We report achieved CSL, lost-demand rate, and opening months of stock (MOS). Opening MOS is calculated as
+
+$$
+MOS^{open}_{m,p} =
+\frac{\sum_{j,s,t} S_{j,s,t}^{open}}
+{\sum_{j,s,t} D_{j,s,t}}
+$$ {#eq-mos}
+
+where $D_{j,s,t}$ is observed demand for product $j$, site $s$, and month $t$, and $S_{j,s,t}^{open}$ is opening stock.
+
+To capture the financial burden of overstocking, we also calculate total opening inventory value in the empirical experiment. Since item-level procurement prices were not available in the LMIS dataset, we use product-level proxy unit prices. These proxy prices were obtained from publicly available USAID reference price information [@rosen2018modeling] where a close product match was available, and were cross-checked through discussions with pharmaceutical supply chain practitioners in Ethiopia. Therefore, they should be interpreted as approximate valuation inputs rather than official procurement costs for Côte d’Ivoire. The proxy prices are reported above. Let $c_j$ denote the proxy unit price for product $j$. Then,
+
+$$
+V^{open}_{m,p} =
+\sum_{j,s,t} c_j S_{j,s,t}^{open}
+$$ {#eq-inv_val}
+
+
+#### Public health indicators
+
+Beyond operational inventory metrics, we assess how stockouts translate into missed public health outcomes. We adopt a public health impact framework adapted from the RH Supplies Impact Calculator[^wp2_1] to link stockout rates to changes in mCPR and downstream outcomes (Users Lost, Unintended Pregnancies, etc.).
+
+[^wp2_1]: RHSC Impact Calculator: <https://www.rhsupplies.org/activities-resources/tools/reducing-stockouts-impact-calculator>
+
+We use stockout rates for this translation because stockouts represent interruptions in access. Let $SO_{m,p}$ denote the stockout rate for method $m$ and policy $p$, and let $SO_{b,p}$ denote the benchmark stockout rate under the same policy. The relative stockout difference is
+
+$$
+\Delta SO_{m,p} = SO_{m,p} - SO_{b,p}
+$$ {#eq-so}
+
+Relative mCPR loss is calculated as
+
+$$
+\Delta mCPR_{m,p} = \rho  \Delta SO_{m,p}
+$$ {#eq-mcpr}
+
+where $\rho = 0.065$ is the assumed mCPR contribution per method category and $J$ is the number of contraceptive product categories included in the empirical analysis. Positive values indicate higher mCPR loss relative to the benchmark, while negative values indicate lower relative loss.
+
+While these estimates are illustrative and not facility-specific, they provide a practical way to interpret stockout outcomes through the lens of public health. In doing so, we emphasise that inventory performance is not purely an operational concern but a proxy for real-world health impact in systems where availability governs access.

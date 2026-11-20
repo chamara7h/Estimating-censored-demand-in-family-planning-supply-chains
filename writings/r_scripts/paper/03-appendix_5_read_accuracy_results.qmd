@@ -1,0 +1,16 @@
+```{r}
+#| include: false
+
+fc_acc_num <- read_rds(project_path("data/results/num_ex_pinball_origin.rds")) |> 
+  left_join(
+    read_rds(project_path("data/results/num_ex_point_acc_origin.rds")),
+    by = c(".id", "date", "store", "product", "model")
+  )
+
+fc_acc_emp <- read_rds(project_path("data/results/emp_ex_pinball_origin.rds")) |> 
+  left_join(
+    read_rds(project_path("data/results/emp_ex_point_acc_origin.rds")),
+    by = c("date", "site_code", "product_code", "model")
+  )
+
+```

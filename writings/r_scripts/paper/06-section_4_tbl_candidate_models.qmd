@@ -1,0 +1,15 @@
+```{r}
+#| label: tbl-candidate
+#| tbl-cap: "Overview of the candidate models."
+
+read_csv(project_path("writings/pom/tables/candidate_models.csv")) |>
+  mutate(across(where(is.character), ~ gsub("Censorship Type", "Censoring Type", .x, fixed = TRUE))) |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(latex_options = c("scale_down", "repeat_header"), font_size = 6) |>
+  column_spec(1, "12em") |>
+  column_spec(2, "8em") |>
+  column_spec(3, "20em") |>
+  column_spec(4, "6em") |>
+  column_spec(5, "6em") 
+
+```

@@ -1,0 +1,111 @@
+```{r}
+#| label: tbl-num-inv-detailed
+#| tbl-cap: "Detailed numerical inventory performance by forecasting method and replenishment policy."
+#| tbl-pos: "H"
+
+# read data ---------------------------------------------------------------
+
+inv_path <- project_path("data/results/inv_df_num.rds")
+
+inv_df_num <- read_rds(inv_path) |>
+  mutate(
+    model = case_when(
+      model == "lr" ~ "Linear Regression",
+      model == "lr_reg" ~ "Censored Linear Regression",
+      model == "moving_average" ~ "Mean",
+      model == "moving_average_reg" ~ "Censored Mean",
+      model == "naive" ~ "Naive",
+      model == "tckf" ~ "TCKF",
+      model == "arima" ~ "ARIMA",
+      model == "arima_reg" ~ "Censored ARIMA",
+      model == "ets" ~ "ETS",
+      model == "timegpt" ~ "TimeGPT",
+      model == "timegpt_reg" ~ "Censored TimeGPT",
+      model == "lgbm" ~ "LightGBM",
+      model == "lgbm_reg" ~ "Censored LightGBM",
+      model == "sba" ~ "Syntetos-Boylan Approx",
+      .default = model
+    ),
+    policy = recode(
+      policy,
+      "deterministic" = "As-is policy",
+      "myopic (k=5)" = "Myopic (k=5)",
+      "myopic (k=10)" = "Myopic (k=10)",
+      "myopic (k=20)" = "Myopic (k=20)",
+      "upper_q80" = "Quantile 80",
+      "upper_q85" = "Quantile 85",
+      "upper_q90" = "Quantile 90",
+      "upper_q95" = "Quantile 95",
+      "capped" = "Capped",
+      "oracle" = "Oracle"
+    )
+  ) |>
+  filter(!policy %in% c("Capped", "Oracle"))
+
+# plot styling ------------------------------------------------------------
+
+policy_levels <- c(
+  "As-is policy", "Myopic (k=5)", "Myopic (k=10)", "Myopic (k=20)",
+  "Quantile 80", "Quantile 85", "Quantile 90", "Quantile 95"
+)
+
+model_levels <- c(
+  "TCKF",
+  "Censored Linear Regression",
+  "Linear Regression",
+  "Mean",
+  "Censored Mean",
+  "Naive",
+  "Syntetos-Boylan Approx",
+  "ARIMA",
+  "Censored ARIMA",
+  "ETS",
+  "TimeGPT",
+  "Censored TimeGPT",
+  "LightGBM",
+  "Censored LightGBM"
+)
+
+# summary -----------------------------------------------------------------
+
+plot_df_num_inv <- inv_df_num |>
+  filter(model != 'Censored LightGBM') |>
+  group_by(policy, model) |>
+  summarise(
+    csl = mean(met_demand, na.rm = TRUE),
+    lost_demand_rate = sum(lost_sales, na.rm = TRUE) / sum(demand, na.rm = TRUE),
+    avg_inventory = mean((opening_stock + closing_stock) / 2, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    policy = factor(policy, levels = policy_levels),
+    model = factor(model, levels = model_levels)
+  )
+
+num_inv_tbl <- plot_df_num_inv |>
+  arrange(policy, model) |>
+  transmute(
+    `Inventory policy` = as.character(policy),
+    Method = as.character(model),
+    CSL = round(csl, 3),
+    `Lost-demand rate` = round(lost_demand_rate, 3),
+    `Avg. inventory` = round(avg_inventory, 2)
+  )
+
+num_inv_tbl |>
+  knitr::kable(
+    format = "latex",
+    booktabs = TRUE,
+    longtable = TRUE,
+    linesep = "",
+    align = "llrrr"
+  ) |>
+  kable_styling(
+    font_size = 8,
+    latex_options = "repeat_header"
+  ) |>
+  collapse_rows(columns = 1, latex_hline = "major") |>
+  column_spec(1, width = "7em") |>
+  column_spec(2, width = "12em") |>
+  column_spec(3:5, width = "5em")
+```

@@ -1,0 +1,16 @@
+﻿Method,Type,Regressors included,Used in numerical?,Used in empirical?
+Naive,Statistical,No,Yes,Yes
+Mean,Statistical,No,Yes,Yes
+Censored Mean,Statistical,No,Yes,Yes
+ETS,Statistical,No,Yes,Yes
+ARIMA,Statistical,No,Yes,Yes
+Censored ARIMA,Statistical,Censorship Type,Yes,Yes
+Linear Regression,Statistical,"Trend, Seasonality",Yes,Yes
+Censored Linear Regression,Statistical,"Censorship Type, Trend, Seasonality",Yes,Yes
+LightGBM,Machine Learning,"Month, Lag 1, Lag 2, Lag 3, Lag 4",Yes,Yes
+Censored LightGBM,Machine Learning,"Censorship Type, Month, Lag 1, Lag 2, Lag 3, Lag 4",Yes,Yes
+TimeGPT,Foundational,No,Yes,Yes
+Censored TimeGPT,Foundational,Censorship Type,Yes,Yes
+System Generated Forecast,Rule-based,–,No,Yes
+Demand Planner Forecast,Human-adjusted,–,No,Yes
+TCKF (Proposed),Hybrid (TKF + CP),Censorship Type,Yes,Yes

@@ -1,0 +1,18 @@
+﻿variable,description
+period,This needs to be broken out by year and month in separate columns
+district,The District associated with the row
+district_code,The unique code identifying each District
+site,"The actual site location, within the District"
+product_code,The unique product code
+product_name,The unique product name
+product_unit,The way in which the product is presented
+stock_initial,The initial amount of stock on hand at the beginning of the period
+stock_recieved,The amount of stock received during that period
+stock_distributed,The amount of stock that was distributed to patients during that period
+stock_adjustment,"The amount of stock that was either lost, stolen or expired during that period"
+stock_end,The amount of stock available at that site at the end of that period
+average_monthly_consumption,The average amout of stock consumed during that period (validate this)
+stock_stockout_days,The number of days there was a stockout of that product during the period
+stock_required,"The system recommended amout of stock to order for the next period (validate this and provide more information on this as this will be our baseline, possibly). "
+stock_ordered,The actual amout of stock ordered for the next period
+comments,Comments associated with the line item

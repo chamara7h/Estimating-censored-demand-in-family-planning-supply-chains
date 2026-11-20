@@ -1,0 +1,28 @@
+```{r}
+#| child: !expr child_path("03-appendix_5_read_accuracy_results.qmd")
+```
+
+## Section 6: Synthetic data generation and demand characteristics {#sec-appendix_wp2_5}
+
+```{r}
+#| child: !expr child_path("04-appendix_5_tbl_numerical_accuracy.qmd")
+```
+
+
+```{r}
+#| child: !expr child_path("05-appendix_5_tbl_empirical_accuracy.qmd")
+```
+
+### Synthetic and empirical demand characteristics
+
+```{r}
+#| child: !expr child_path("01-section_5_fig_synthetic_features.qmd")
+```
+
+```{r}
+#| child: !expr child_path("02-section_5_read_empirical_features.qmd")
+```
+
+```{r}
+#| child: !expr child_path("03-section_5_fig_empirical_features.qmd")
+```

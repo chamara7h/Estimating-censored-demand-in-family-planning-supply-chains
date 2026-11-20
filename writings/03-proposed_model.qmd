@@ -1,0 +1,271 @@
+# Proposed model: Truncated Conformal Kalman Filter (TCKF) {#sec-model_wp2}
+
+## Tobit Kalman Filter
+
+To address the challenge of forecasting under censored demand, we first establish a baseline using the Tobit Kalman Filter (TKF), as proposed by @trapero2024. The TKF integrates state-space modelling with censoring logic, treating observed sales as censored manifestations of a latent demand process.
+
+Let $y_t^{*}$ denote the latent (true) demand at time $t$, which is assumed to follow a standard state-space structure. For a Local Level Model (LLM), the state transition and measurement equations are defined as:
+
+$$
+\begin{aligned}
+y_t^{*} &= \mu_t + \epsilon_t, \qquad \epsilon_t \sim \mathcal{N}(0, \sigma_{\epsilon}^{2}) \\
+\mu_{t+1} &= \mu_t + \eta_t, \qquad \eta_t \sim \mathcal{N}(0, \sigma_{\eta}^{2})
+\end{aligned}
+$$ {#eq-tkf-main}
+
+where $\mu_t$ represents the level component, and $\epsilon_t$ and $\eta_t$ are independent Gaussian noise terms. In the presence of inventory constraints, the observed sales $y_t$ are related to the latent demand $y_t^{*}$ via the censoring mechanism:
+
+$$
+y_t =
+\begin{cases}
+y_t^{*}, & \text{if } y_t^{*} \le I_t \\
+I_t, & \text{if } y_t^{*} > I_t
+\end{cases}
+$$ {#eq-tkf-2}
+
+where $I_t$ is the available inventory at time $t$. The standard TKF accounts for partial censoring (stockouts) by using a Tobit likelihood function to update the state estimates when $y_t = I_t$. In this framework, the measurement equation is modified to account for the probability that the true demand lies above the threshold $I_t$.
+
+However, a key limitation of the standard TKF in public health supply chains is its inability to distinguish between stockouts (where demand exceeds supply, providing a lower bound) and service interruptions (where demand is completely unobservable due to facility closures or absent staff). Treating interruptions as zero demand biases the forecast downward, while treating them merely as missing data fails to account for the increasing uncertainty during the interruptions.
+
+To address these limitations, we propose the TCKF. While TCKF builds on the Tobit-based framework of @trapero2024 and @pedregal, it introduces distinct mechanisms for handling the specific disruptions found in FPSC. Unlike existing approaches, TCKF explicitly distinguishes between partial censoring and full censoring, enabling context-sensitive state updates.
+
+## Problem setup
+
+Let $y_t$ denote the observed demand at time $t$, subject to potential censoring. We define the true (i.e., latent) demand $D_t \in \mathbb{R}{\geq 0}$ as a function of unobserved components evolving over time:
+
+$$
+D_t = \ell_t + \tau_t + \gamma_t + \varepsilon_t, \quad \varepsilon_t \sim \mathcal{N}(0, \sigma^2)
+$$ {#eq-one}
+
+where $\ell_t$ is the level, $\tau_t$ is the trend, $\gamma_t$ is the seasonal component, and $\varepsilon_t$ is Gaussian noise. The latent state vector is defined as:
+
+$$
+X_t = \begin{bmatrix} \ell_t \\ \tau_t \\ \gamma_t \end{bmatrix}
+$$ {#eq-two}
+
+We assume $X_t$ evolves according to a state-space model:
+
+$$
+X_t = F X_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, Q_t)
+$$ {#eq-three}
+
+where the transition matrix $F$ and time-varying process noise $Q_t$ are:
+
+$$
+F = \begin{bmatrix} 1 & 1 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & \phi \end{bmatrix}, \quad Q_t = Q_0 + \lambda k_t I, \quad 0 \leq \lambda \leq 1
+$$ {#eq-four}
+
+Here, $\phi \quad in \quad [0,1]$ is the seasonal decay factor[^wp2_3_1], $\lambda$ is a bias inflation scalar, and $k_t$ is the number of consecutive censored observations at time $t$. The matrix $Q_t$ increases as censoring persists to reflect rising model uncertainty.
+
+[^wp2_3_1]: If $\phi = 1$, seasonality remains constant. If $\phi < 1$, the seasonal effect gradually fades.
+
+The observed demand $y_t$ depends on the availability of stock:
+
+$$
+y_t = \begin{cases}
+H X_t + \nu_t, & \text{if } y_t \text{ is uncensored} \\
+0, & \text{if } y_t \text{ is fully censored} \\
+\min(H X_t, s_t), & \text{if } y_t \text{ is partially censored}
+\end{cases}, \quad \nu_t \sim \mathcal{N}(0, R)
+$$ {#eq-five}
+
+where $s_t$ is available stock at time $t$, $H = [1 \quad 0 \quad 1]$ is the observation matrix (mapping level and seasonality to the observed signal), and $R$ is the observation noise variance.
+
+In the observation matrix $H$, we define the trend as an internal *drift* in the system that is folded into the level over time. Thus, short-term trend variations are not directly measurable in the observed demand. The trend is inferred over time through the system’s dynamic evolution. In the case of full censoring, instead of treating the observed value as a literal zero, we model these instances as right-censored at zero. The likelihood of the observation is then represented by a truncated Gaussian distribution bounded below by zero, acknowledging that while the true demand is unobserved, it is known to be non-negative.
+
+## Inference with Truncated Kalman Filter
+
+To accommodate censored observations within the Kalman filtering framework, we incorporate a correction based on the expectation of a truncated Gaussian distribution. In contrast to standard Kalman filtering, which assumes Gaussian-distributed observations, here the observed variable $y_t$ may be censored due to supply constraints. This necessitates modifying the update step when $y_t$ is partially or fully censored.
+
+The first step in each iteration involves computing the predicted observation mean and variance:
+
+$$
+\mu_t = H \hat{X}_{t|t-1}, \quad \sigma^2_t = H P_{t|t-1} H^\top + R
+$$ {#eq-six}
+
+Here, $\mu_t$ is the forecasted mean of the observation, and $\sigma^2_t$ is the associated variance, accounting for both state uncertainty and observation noise.
+
+### Separating stockouts and service interruptions {#sec-model_seperate}
+
+A key extension of TCKF is that it separates two operationally different forms of censored demand: stockouts and service interruptions. This distinction matters because the two regimes provide different information about latent demand.
+
+During a stockout, observed demand is constrained by available stock. If the stock threshold is $s_t$, then true demand satisfies $D_t \geq s_t$. Under the one-step-ahead forecast distribution $D_t \mid \mathcal{F}_{t-1} \sim N(\mu_t,\sigma_t^2)$, the expected latent demand is
+
+$$
+\mathbb{E}(D_t \mid D_t \geq s_t)
+=
+\mu_t+
+\sigma_t
+\frac{\phi(a_t)}
+{1-\Phi(a_t)},
+\qquad
+a_t=\frac{s_t-\mu_t}{\sigma_t}
+$$ {#eq-stockout-conditional-mean}
+
+This conditional expectation is greater than $\mu_t$, so a stockout provides useful lower-bound information for updating the demand state. A service interruption is different. The recorded zero arises because service was unavailable and therefore does not provide a meaningful demand threshold. TCKF consequently skips the measurement update and propagates the prior state, while allowing uncertainty to increase.
+
+This section explains three aspects of regime separation: the conditions under which a recorded zero carries no additional demand information, how updating the state using such a zero can introduce estimation error, and how alternative treatments of that zero affect the innovation and estimated uncertainty.
+
+We first explain the conditions under which a recorded zero during a service interruption provides no information for updating the demand state. Let $C_t=1$ denote a known service interruption, during which $y_t=0$ because service is unavailable. Once the interruption is known, the recorded zero adds no further information, so
+
+$$
+p(X_t \mid y_t=0,C_t=1,\mathcal{F}_{t-1})
+=
+p(X_t \mid C_t=1,\mathcal{F}_{t-1}).
+$$ {#eq-interruption-state}
+
+For this distribution to equal the prior $p(X_t \mid \mathcal{F}_{t-1})$, the interruption itself must also be unrelated to the latent demand state, conditional on past information: $C_t \perp X_t \mid \mathcal{F}_{t-1}$. This condition applies when the interruption is caused by operational factors that provide no additional information about latent demand. Under this condition, and when the predictive state mean represents the conditional expectation, $\hat{X}_{t|t-1}$ remains the minimum mean squared error (MSE) estimate. This explains why TCKF skips the measurement update during a known service interruption. If the occurrence of an interruption is informative about demand, this reasoning does not apply without modelling that relationship.
+
+We next explain how updating the state using an interruption zero can introduce estimation error. Consider a comparator that starts from the same predictive state estimate as TCKF but applies a measurement update with innovation $\delta_t$:
+
+$$
+\hat{X}^{C}_{t|t}
+=
+\hat{X}_{t|t-1}
++
+K_t\delta_t.
+$$ {#eq-regime}
+
+Under the conditions above, the prediction error $e_t=X_t-\hat{X}_{t|t-1}$ has conditional mean zero. If $K_t\delta_t$ is determined by past information and the known interruption, the cross term in the squared error has conditional expectation zero. The difference in conditional state-estimation MSE is therefore
+
+$$
+\operatorname{MSE}_{C}
+-
+\operatorname{MSE}_{TCKF}
+=
+\lVert K_t\delta_t\rVert^2
+\geq 0.
+$$ {#eq-mse}
+
+The difference is positive when the update changes the state estimate. This explains the immediate effect of using an uninformative zero in the measurement update. The comparison concerns a single update from a common prior under the stated conditions; it does not establish the size of forecasting or inventory gains over a sequence of periods.
+
+Finally, we explain how two alternative treatments of an interruption zero affect the innovation. Treating the zero as an ordinary demand observation gives $\delta_t^{N}=-\mu_t$. For a positive predicted mean, this creates a negative innovation and, with a positive level gain, pulls the estimated demand level downward. Treating the zero as a censored observation with threshold $s_t=0$, as in the pooled specification used in @sec-model_diag, instead gives, from @eq-stockout-conditional-mean,
+
+$$
+\delta_t^{P}
+=
+\sigma_t\lambda(r_t)
+>
+0,
+\qquad
+\lambda(r)=\frac{\phi(r)}{\Phi(r)},
+\qquad
+r_t=\frac{\mu_t}{\sigma_t}.
+$$ {#eq-pooled-innovation}
+
+This treatment creates a positive innovation and, with a positive level gain, pushes the estimated demand level upward. For $r_t\geq0$, $\lambda(r_t)\leq\sqrt{2/\pi}\approx0.798$, so the pooled innovation is at most $0.798\sigma_t$. The corresponding change in the state is $K_t\delta_t^{P}$ and therefore also depends on the gain. Repeated interruption updates can carry these changes into subsequent forecasts, although their accumulated effect depends on the state dynamics and gains.
+
+The pooled treatment also applies a censored-observation variance update during a period that, under the conditions above, provides no new demand information. It can therefore reduce the estimated uncertainty without an informative observation. An upward shift in the forecast mean and a reduction in forecast dispersion have opposing effects on upper forecast quantiles, so their net effect on coverage is not determined by this argument alone. @sec-model_diag examines the direction and magnitude of these differences numerically.
+
+### Uncensored Update
+
+If the observation $y_t$ is not subject to censoring, the standard Kalman update equations apply:
+
+$$
+K_t = \frac{P_{t|t-1} H^\top}{\sigma^2_t}, \quad \hat{X}_{t|t} = \hat{X}_{t|t-1} + K_t (y_t - \mu_t)
+$$ {#eq-seven}
+
+This step updates the state estimate by incorporating the innovation, or residual, between the actual and predicted observations. The relevant components are:
+
+-   Innovation (residual): $\tilde{y}_t = y_t - H \hat{X}_{t|t-1}$
+-   Innovation covariance: $S_t = H P_{t|t-1} H^\top + R$
+-   Updated covariance: $P_{t|t} = (I - K_t H) P_{t|t-1}$
+
+This formulation ensures optimal linear updates when the true observation is directly available.
+
+### Censored Update
+
+When $y_t$ is censored, it no longer represents the true realized value but rather a lower bound on the latent demand. To correct for this, we replace the observed value with the expected value of a right-truncated Gaussian distribution:
+
+$$
+z_t = \frac{y_t - \mu_t}{\sigma_t}, \quad \hat{y}_t = \mathbb{E}[Y_t \mid Y_t > y_t] = \mu_t + \sigma_t \cdot \frac{\phi(z_t)}{1 - \Phi(z_t)}
+$$ {#eq-eight}
+
+where $\phi(\cdot)$ and $\Phi(\cdot)$ are the standard Gaussian probability density function and cumulative distribution function, respectively. This formulation corrects for the fact that the true demand is unobserved but known to exceed the censored threshold.
+
+The state update is then performed using this adjusted expectation:
+
+$$
+\hat{X}_{t|t} = \hat{X}_{t|t-1} + K_t (\hat{y}_t - \mu_t)
+$$ {#eq-nine}
+
+In the special case of full censoring ($y_t = 0$), the truncation threshold becomes zero, and the standardized value simplifies to:
+
+$$
+z_t = -\frac{\mu_t}{\sigma_t}
+$$ {#eq-ten}
+
+Although we may compute an adjusted expectation, the actual Kalman update step for the state vector is skipped, preserving the prior estimate and propagating uncertainty forward. This approach allows the filter to incorporate partial or fully censored data without biasing the estimated state. The resulting inference is robust to the presence of lost sales and demand censoring while preserving the recursive nature of the Kalman filter.
+
+## Initialization and parameter estimation
+
+We use STL decomposition of uncensored training observations to initialise the latent state and estimate its covariance. When the variance estimates are unreliable, we use a diffuse prior for the covariance. The initial parameter values are subsequently refined by maximising the truncated log-likelihood. Full details are provided in **E-companion, Section 1**.
+
+## Uncertainty quantification via conformal prediction
+
+In our approach, we wrap the predictive distribution of the Kalman filter inside a conformal prediction interval. This provides valid coverage regardless of the distribution of the noise, as long as the residuals are exchangeable. This ensures robustness against misspecification of the noise distribution, which is a typical weakness of traditional methods assuming Gaussianity [@angelopoulos2021].
+
+Conformal prediction acts as a simple calibration layer on top of the Kalman filter. We first produce a point forecast $\mu_t$ from the filter, then look back at how large the filter’s errors were in past uncensored periods. The conformal interval is obtained by widening the forecast by an amount that matches a chosen coverage level (e.g., $95\%$) based on this empirical error distribution. In other words, the interval width is determined by the model’s observed historical mistakes rather than by a parametric assumption about the error distribution. This is particularly important in FPSC applications, where demand is volatile, skewed, and frequently censored. In such settings, parametric intervals inherited from the underlying filter can be poorly calibrated even when point forecasts are reasonable. Conformal prediction addresses this by calibrating interval width directly from empirical forecast errors.
+
+To ensure the conformal prediction intervals reflect actual uncertainty in the estimated demand, we restrict the residual calculation to uncensored periods only. This is because censored observations are not reliable indicators of true demand and may bias the empirical residual distribution.
+
+The residual at time $t$ is computed as:
+
+$$
+r_t = |y_t - \mu_t|, \quad R = \{r_t : y_t \text{ uncensored} \}
+$$ {#eq-thirteen}
+
+Where $\mu_t$ is the Kalman forecast for period $t$, and $R$ is the set of residuals used for interval calibration.
+
+To construct a $(1 - \alpha)$ prediction interval, we compute the empirical quantile from this residual set:
+
+$$
+q_\alpha = \text{Quantile}_{1-\alpha}(R)
+$$ {#eq-fourteen}
+
+The resulting prediction interval for the true demand $D_t$ is then:
+
+$$
+D_t \in [\max(0, \mu_t - q_\alpha), \mu_t + q_\alpha]
+$$ {#eq-fifteen}
+
+This interval has distribution-free coverage guarantees under the assumption that residuals are approximately exchangeable. The truncation at zero ensures non-negativity of the lower bound, in line with the non-negative nature of demand. As the time series progresses, the residual set $R$ is updated with new uncensored residuals, allowing $q_\alpha$ to adapt dynamically. This enables the conformal prediction band to remain calibrated without requiring model refitting or restrictive distributional assumptions.
+
+## Model assumptions
+
+TCKF models latent demand as a structural state-space process with level, trend and seasonal components. The state and observation innovations are assumed Gaussian for tractability. Non-Gaussian behaviour arises from the observation mechanism, where recorded consumption is censored under stockouts and service interruptions. We assume that these censoring regimes are correctly identified using pre-specified indicators from routine LMIS records. The method focuses on operational censoring and is not intended to correct for general data quality problems, such as clinic-level reporting or recording issues that affect observed consumption even when stock is available [@karamshetty2022]. Its generalisability is therefore conditional on LMIS data quality and the availability of stockout, stock movement and operational indicators at the product–facility–period level.
+
+True demand is assumed non-negative. We enforce this constraint in prediction by truncating the lower bound at zero. Uncertainty is quantified using a conformal layer calibrated on residuals from uncensored periods only, treating these residuals as approximately exchangeable. The model is estimated independently for each product–facility series, with no pooling across units.
+
+These assumptions are standard in state-space demand modelling, but their implications depend on the demand pattern and the severity/persistence of censoring. We therefore conduct targeted diagnostics to evaluate sensitivity to the structural specification, the uncertainty inflation mechanism, and the conformal calibration strategy.
+
+## Robustness and boundary conditions
+
+We evaluate robustness by varying one modelling component at a time while holding the data, training window, and evaluation pipeline fixed. This isolates which elements of TCKF are responsible for performance gains and clarifies the settings where simpler alternatives may be sufficient.
+
+*Transition dynamics (state specification):* We estimate nested state specifications: (i) local level only, (ii) level and seasonality, and (iii) the full level–trend–season model. This tests sensitivity to the assumed structural dynamics.
+
+*Uncertainty inflation:* We stress-test the inflation mechanism $Q_t = Q_0 + \lambda k_t I$ by running $\lambda \in \{0,\ \hat{\lambda},\ 1\}$, representing no inflation, the estimated setting, and maximal inflation. This evaluates how strongly results depend on the way uncertainty grows during consecutive censored periods.
+
+*Conformal calibration:* We compare global residual pooling to rolling-window calibration (e.g., the last 24 uncensored residuals). This tests the stability of interval calibration under potential non-stationarity in forecast errors.
+
+## Model diagnostic {#sec-model_diag}
+
+In the numerical experiment, TCKF largely preserves the underlying demand signal during stockouts and service interruptions, although smoothing limits its ability to recover isolated extremes. The signal-recovery results are provided in **E-companion, Section 10**.
+
+We next examine the value of separating stockouts and service interruptions. We compare TCKF with a pooled version that treats both mechanisms as the same censored regime. To make the comparison consistent, both versions use the same latent demand series, state specification, parameter estimates, uncertainty inflation and conformal calibration. The only difference is how they treat service interruptions.
+
+We consider three scenarios with different levels of interruption severity. Short interruptions occur as isolated periods, moderate interruptions continue for two to three periods, and persistent interruptions continue for four to six periods. These scenarios contain 7, 11 and 18 interrupted periods, respectively. The underlying demand and stockout process remain unchanged. We evaluate RMSE and empirical coverage at the $80\%, 85\%, 90\%$ and $95\%$ quantiles. These measures are calculated both overall and for forecasts following stockouts and service interruptions.
+
+```{r}
+#| child: !expr child_path("03-section_3_fig_regims.qmd")
+```
+
+@fig-model_diag_regime_wp2 shows a consistent direction in point forecast accuracy: separated TCKF has lower mean RMSE than the pooled version across the three interruption scenarios. The differences become larger as interruptions become more persistent. However, their magnitude remains modest. Under persistent interruptions, mean RMSE decreases from 51.26 to 50.54 overall, from 46.21 to 44.68 following stockouts, and from 50.18 to 48.48 following service interruptions. These correspond to reductions of approximately $1.4\%$, $3.3\%$ and $3.4\%$, respectively, relative to the pooled version.
+
+The coverage results show a similar but less uniform pattern. Separating the regimes generally reduces overcoverage at the $80\%-90\%$ quantiles, with larger differences under persistent interruptions. For example, following persistent interruptions, empirical coverage at the $90\%$ quantile decreases from $92.26\%$ for the pooled version to $91.38\%$ for separated TCKF, bringing it closer to the nominal level by 0.88 percentage points. At the $95\%$ quantile, however, the pooled version is closer to the nominal level in this scenario. Regime separation therefore does not improve calibration uniformly across all quantiles.
+
+These results distinguish the direction of the observed differences from their magnitude and statistical interpretation. The reductions in RMSE and changes in coverage are modest. The overlapping confidence intervals shown in the figure are descriptive and do not constitute a formal test of the differences between the specifications. Statistically significant improvement in forecast accuracy or calibration from regime separation has therefore not been established by this comparison. We interpret the observed differences as descriptive evidence consistent with the mechanism discussed in @sec-model_seperate. The broader numerical and empirical evaluations assess TCKF as a complete framework and do not isolate the contribution of regime separation.
+
+The sensitivity results support the parsimonious state specification used in TCKF. Rolling conformal calibration improves empirical coverage with little change in point accuracy, while estimating the uncertainty-inflation weight maintains coverage and keeps RMSE stable. Full results are reported in **E-companion, Section 10**.
+

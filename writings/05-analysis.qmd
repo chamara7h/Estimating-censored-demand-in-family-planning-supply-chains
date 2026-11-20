@@ -1,0 +1,93 @@
+# Results {#sec-results_wp2}
+
+## Numerical experiment setup
+
+The numerical dataset contains 1,000 monthly time series, representing 100 stores and 10 products, each with 100 observations. The series include intermittent demand, weak and varying seasonal patterns, stockouts and service interruptions. The data-generating process uses heavy-tailed innovations, whereas TCKF assumes Gaussian innovations. The simulated censoring regimes are identified without error. Details of the data-generation process and the series profiles are provided in **E-companion, Section 6**. The effect of regime separation is isolated through the pooled comparison in @sec-model_diag.
+
+## Empirical experiment setup using real-world data
+
+For the empirical evaluation, we used monthly LMIS data from Côte d’Ivoire covering January 2016 to December 2019. The dataset includes 507 time series across nine contraceptive products, including condoms, emergency contraceptives, oral pills, injectables, implants, and IUDs. The target variable is stock distributed, which we treat as observed demand.
+
+To identify censored demand, we used the stockout-days field and comment logs written by demand planners. These comments include information on stockouts, facility closures, delivery delays, untrained staff, upstream stock availability problems, and other service disruptions. Based on these fields, we constructed two indicators: one for stockouts and one for service interruptions. For new product introductions, we imputed zeros before the first recorded appearance using metadata and site-level comments.
+
+The real-world series show irregular, intermittent and often weakly seasonal patterns, consistent with the types of demand considered in the numerical experiment. The empirical series profiles are provided in **E-companion, Section 6**.
+
+## Forecast performance evaluation
+
+```{r}
+#| child: !expr child_path("04-section_5_read_results.qmd")
+```
+
+In the numerical experiment, we compare the relative forecast performance of all candidate models against the TCKF benchmark. @tbl-num_fc_acc_wp2 reports the mean FVA for point forecasts and the mean Skill Score for different quantile levels. Across both point and probabilistic forecasts, none of the benchmark models achieves a positive mean FVA or mean Skill Score. This indicates that, on average, no method adds value relative to TCKF in the synthetic setting.
+
+```{r}
+#| child: !expr child_path("05-section_5_tbl_numerical_forecast.qmd")
+```
+
+In the empirical evaluation, we assess forecast performance using uncensored observations only, so that accuracy reflects periods where demand is observed without distortion from stockouts or interruptions. @tbl-fc_acc_wp2 shows the same overall pattern: no method improves on TCKF in either FVA or Skill Scores. However, model behaviour changes in the real setting. Linear Regression, which is comparatively competitive in the synthetic experiment, performs substantially worse empirically. This is consistent with the empirical data characteristics. Most series exhibit moderate-to-low seasonality, and many are intermittent with low overall demand. These features reduce the advantage of models that rely on strong trend or seasonal structure and favour approaches that remain stable under sparse and irregular demand.
+
+The LMIS System-Generated forecast performs similarly to simple mean-based baselines, which is acceptable as a reference point, but it remains far from TCKF. Demand planner adjustments consistently reduce forecast accuracy relative to the system forecast. From a pure forecasting standpoint, these adjustments do not add value. However, it remains important to see how these adjustments affect inventory outcomes, since they may still serve operational purposes beyond forecast error minimisation.
+
+```{r}
+#| child: !expr child_path("06-section_5_tbl_empirical_forecast.qmd")
+```
+
+To test whether differences in forecast performance are statistically significant, we apply the Nemenyi post-hoc test at the 5% level using inverted FVA values (i.e., $(1-\text{FVA})$, which is equivalent to a relative RMSE scale). This transformation is needed because the Nemenyi procedure ranks methods from smallest to largest values, whereas higher FVA indicates better performance. By inverting FVA, better models have smaller values and therefore better (lower) ranks, making the ranking direction consistent with the test.
+
+@fig-fva_nemenyi_wp2 presents the results as a critical-difference style rank plot for the numerical (left) and empirical (right) experiments. Each method is shown with its average rank, and the horizontal bar indicates the 95% confidence interval for that rank. The shaded grey band marks the 95% confidence interval of the best-ranked method. Any method whose confidence interval overlaps this grey band is not significantly different from the top performer; methods whose intervals lie fully outside the band are significantly worse. Across both settings, TCKF achieves the best (lowest) average rank and its grey-band interval does not overlap with any other method, indicating that TCKF is significantly better than all alternatives at the 5% level.  In the numerical experiment, SBA ranks relatively well compared to many benchmarks, which is notable given its design for intermittent demand and consistent with the high intermittency embedded in the synthetic data. In several model families (e.g., Mean and ARIMA), adding censoring information improves performance relative to their uncensored variants, suggesting that explicitly encoding censored-period structure can reduce bias in demand estimation. The same pattern is weaker for LightGBM, where the censored version offers only marginal improvement.
+
+```{r}
+#| child: !expr child_path("07-section_5_fig_nemenyi.qmd")
+```
+
+
+## Inventory performance
+
+We first evaluate inventory performance in the numerical experiment, where true demand is known. This allows us to assess whether each forecasting method can support service improvements without requiring excessive inventory. Since the objective of the numerical experiment is to compare forecast-policy behaviour under controlled conditions, we interpret the results as service–inventory trade-offs rather than as direct operational stock targets.
+
+@fig-num-csl-avg-inventory shows the trade-off between achieved CSL and average opening inventory across replenishment policies. Points closer to the upper-left indicate better performance, as they provide higher service with lower inventory. The as-is policy generally produces higher CSL, but it also requires higher inventory because it follows a multiplier-based stock target. This is expected, as the three-month target used in practice is designed to cover the review period, the expected lead time, and a safety buffer.
+
+For the myopic and quantile-based policies, average inventory can be lower than the three-month target. This should not be interpreted as contradicting the country policy. These policies do not impose the three-month multiplier as a fixed rule. Instead, they test whether forecast-driven replenishment can achieve acceptable service with a lower stock burden under controlled supply conditions. Therefore, lower inventory levels under these policies should be interpreted as simulated efficiency gains, not as direct recommendations to reduce operational buffers without considering lead-time uncertainty.
+
+```{r}
+#| child: !expr child_path("09-section_5_fig_numerical_inventory.qmd")
+```
+
+The results show that TCKF is consistently close to the efficient frontier. Under the as-is policy, Censored Linear Regression achieves a slightly higher CSL than TCKF, but with a similar or slightly higher inventory level. Across the myopic and quantile-based policies, TCKF generally achieves higher service than most benchmark methods for a comparable inventory burden. In particular, under the quantile policies, TCKF maintains higher CSL while avoiding the excessive inventory levels observed for some benchmarks such as Naive and Censored TimeGPT. This suggests that the main value of TCKF is not simply higher stockholding, but a more efficient translation of forecast uncertainty into replenishment decisions. The detailed numerical results, including lost-demand rates and average inventory values for all forecast-policy combinations, are reported in **E-companion, Section 7**.
+
+We next evaluate how the empirical forecasts translate into inventory outcomes. In the empirical setting, the products are real contraceptive commodities, so we can extend the numerical analysis by attaching product-level proxy unit prices to opening stock. These prices are used only as proxy values, not as audited procurement costs. This allows us to compare whether service improvements are achieved with proportionate inventory investment or through substantial stock accumulation. We therefore report achieved CSL and lost-demand rate against total proxy opening inventory value, and then translate stockout differences into relative mCPR loss. The detailed policy-level results are reported in **E-companion, Section 7**.
+
+@fig-emp-csl-proxy-inventory-value reports achieved CSL against total proxy opening inventory value. The as-is policy gives an important benchmark because it is closest to the current three-month stock logic. Under this policy, the System-Generated forecast achieves a higher CSL than TCKF, 0.937 compared with 0.918. This result is not unexpected because both the as-is policy and the System-Generated forecast are close to moving-average, rule-based planning logic. In other words, the System-Generated forecast is well matched to the as-is multiplier rule and should be treated as a strong operational baseline in this specific setting.
+
+However, CSL should not be interpreted without the corresponding inventory burden. Demand Planner forecasts usually achieve the highest CSL, but with much higher stockholding. Under the as-is policy, Demand Planner reaches a CSL of 0.987, but the total proxy opening inventory value increases to about USD 607k, compared with USD 449k for the System-Generated forecast and USD 404k for TCKF. In opening months of stock, this corresponds to 5.43 months for Demand Planner, 3.43 for System-Generated, and 3.40 for TCKF. Therefore, the higher service level from planner adjustment is partly achieved through substantially higher stockholding. In a resource-constrained supply chain, this matters because stock held at one facility can reduce availability elsewhere.
+
+```{r}
+#| child: !expr child_path("10-section_5_fig_empirical_inventory_value.qmd")
+```
+
+For sparse and intermittent products, the fixed multiplier in the as-is policy can produce low stock targets when the point forecast is small, leaving limited protection against occasional demand spikes. The Copper T IUD and Implanon examples and the complementary lost-demand results are reported in **E-companion, Section 8**.
+
+Finally, @fig-emp-mcpr-loss-opening-mos translates stockout differences into relative mCPR loss and compares them with opening months of stock. We report this only for the empirical experiment because this translation is meaningful only in the real product setting, where stockouts correspond to interruptions in contraceptive access. In this analysis, relative mCPR loss should therefore be interpreted as a public-health translation of access disruption, not as a direct measure of physical lost units.
+
+The mCPR results reinforce the same trade-off. Because relative mCPR loss is benchmarked against TCKF within each policy, TCKF is normalised to zero. Under the as-is policy, both operational baselines show lower relative mCPR loss than TCKF: approximately -0.011 for System-Generated and -0.041 for Demand Planner. This reflects their lower stockout rates under the as-is rule. However, this advantage is not free. Demand Planner achieves the largest reduction in relative mCPR loss while holding substantially more stock.
+
+Under the quantile policies, the interpretation changes. For example, under the 90th percentile policy, System-Generated has a positive relative mCPR loss of about 0.028 compared with TCKF, while Demand Planner has a negative relative mCPR loss of about -0.021. Under the 95th percentile policy, System-Generated remains worse than TCKF in relative mCPR terms, about 0.011, while Demand Planner remains better, about -0.025, but again with a higher inventory burden.
+
+```{r}
+#| child: !expr child_path("12-section_5_fig_empirical_mcpr.qmd")
+```
+
+## Lead-time sensitivity analysis
+
+To assess the robustness of the reported service levels to the fixed lead-time assumption, we reran the empirical inventory simulation under longer and stochastic replenishment delays. In this analysis, we keep the forecasting inputs and replenishment policies unchanged and vary only the receipt delay. This allows us to isolate how lead-time uncertainty affects achieved CSL.
+
+@fig-leadtime_csl_sensitivity shows that the fixed one-month lead time is an optimistic base-case assumption. Across almost all policies, achieved CSL declines when the lead time is increased from one to two months, and declines further under a three-month lead time. This confirms that replenishment timing is an important driver of service performance and that the absolute CSL values in the base-case simulation should be interpreted as controlled, forecast-driven outcomes rather than direct estimates of realised operational service levels.
+
+```{r}
+#| child: !expr child_path("13-section_5_fig_leadtime_sensitivity.qmd")
+```
+
+We also compare the simulated service levels with the observed achieved CSL from the original LMIS stock movement data. Here, achieved CSL is calculated as the proportion of product–facility–month records without a stockout or service interruption. We use this as an availability-based benchmark, not as a true demand fill rate, because true demand is unobserved during stockouts and interruptions. The observed overall achieved CSL is 0.838, which is lower than most simulated CSL values under the fixed one-month lead-time setting. This supports the interpretation that the base-case simulation is optimistic and should be read as a controlled forecast-policy comparison rather than a direct estimate of realised service performance. The detailed product-level summary statistics are reported in **E-companion, Section 9**. Notably, the achieved CSL under the stochastic lead-time setting is closer to this observed empirical CSL, suggesting that allowing lead times to vary provides a more realistic service-level benchmark than the fixed one-month base case.
+
+However, the main operational interpretation remains broadly unchanged. Demand Planner forecasts generally maintain the highest CSL across lead-time scenarios, but this should be interpreted together with the much larger inventory burden reported earlier. TCKF remains more robust than the System-Generated forecast in most policies, particularly under the quantile-based policies where uncertainty calibration is important. The stochastic lead-time scenario falls between the fixed one-month and fixed three-month cases, as expected, because it combines shorter and longer replenishment delays according to the empirical delay distribution.
+

@@ -1,0 +1,82 @@
+```{=latex}
+\begin{algorithm}[H]
+\scriptsize
+\SetAlgoNlRelativeSize{-2}
+\SetAlCapSkip{0.5em}
+\SetInd{0.5em}{1em}
+\DontPrintSemicolon
+\caption{Synthetic time series generation -- Part 1}
+\label{alg:synthetic_generation_part1}
+
+\KwIn{
+  $P$ products, $S$ stores, $T$ periods, dates with monthly index; \\
+  types $\in \{\textsf{smooth},\textsf{erratic},\textsf{lumpy}\}$; \\
+  correlation labels $\in \{\textsf{correlated},\textsf{uncorrelated}\}$; \\
+  target STL strengths $(F^{\text{trend}},F^{\text{season}})\in[0,1]^2$; \\
+  CV$^2$ targets by type; common-shock weight $\rho \in [0,1]$.
+}
+\KwOut{Intermediate latent series up to $x^{\text{all}}_t$ for each product--store pair}
+
+\BlankLine
+\textbf{Shared structures:} draw a 12-month \textit{shared seasonal} vector and a length-$T$ \textit{common shock}, both centered.\;
+
+\textbf{Parameter grid:} for each product--store pair, assign
+(i) \textit{series\_category} $\in$ \{correlated, uncorrelated\},
+(ii) \textit{series\_type} $\in$ \{smooth, erratic, lumpy\},
+(iii) \textit{trend\_strength} $\in$ \{low, medium, high\},
+(iv) \textit{seasonal\_strength} $\in$ \{low, medium, high\}; \\
+map these to initial slope and seasonal amplitude ranges.\;
+
+\ForEach{series}{
+  \tcp{Seasonal pattern by correlation label}
+  \eIf{correlated}{
+    use the shared seasonal vector
+  }{
+    draw a new centered seasonal vector of length 12
+  }
+
+  \tcp{Weaken deterministic structure for \textsf{erratic} series}
+  \If{type = erratic}{
+    scale slope $\leftarrow 0.3\times$, season\_amp $\leftarrow 0.5\times$
+  }
+
+  \tcp{Choose CV$^2$ target by type (log-uniform on CV)}
+  Set CV$^2$ target: smooth $\sim$ low, erratic $\sim$ medium--high, lumpy $\sim$ medium--very high.\;
+
+  \tcp{Noise-aware calibration: match STL strengths}
+  Draw target $(F^{\text{trend}}_{\star},F^{\text{season}}_{\star})$ (e.g., Beta(2,2)); \\
+  \For{$k=1$ \KwTo 3}{
+    form baseline $b_t = (\text{slope}\cdot t) + (\text{season\_amp}\cdot \text{seas}(t))$;\;
+    shift $b_t$ to positive support; \\
+    draw multiplicative noise $\varepsilon_t \sim \log\mathcal{N}(\mu,\sigma^2)$ s.t. $E[\varepsilon_t]=1$, $\operatorname{Var}[\varepsilon_t]=$CV$^2$; \\
+    compute provisional series $z_t = b_t \cdot \varepsilon_t$; \\
+    compute STL strengths $(\widehat{F}^{\text{trend}},\widehat{F}^{\text{season}})$; \\
+    update \textit{slope}, \textit{season\_amp} multiplicatively to reduce $(F_\star - \widehat{F})$.
+  }
+
+  \tcp{Deterministic component}
+  $b_t \leftarrow (\text{slope}\cdot t) + (\text{season\_amp}\cdot \text{seas}(t))$; \\
+  shift $b_t$ to positive.\;
+
+  \tcp{Correlated multiplicative shock (common + idiosyncratic)}
+  Draw idiosyncratic standardized shock $z^{\text{id}}_t$: \\
+  \hspace*{1em} smooth: i.i.d. $\mathcal{N}(0,1)$; \\
+  \hspace*{1em} erratic: AR(1) with $\phi \in [0.3,0.6]$; \\
+  \hspace*{1em} lumpy: standardized $t_{\nu=3}$.\;
+  
+  \eIf{correlated}{
+    set $z_t \leftarrow \sqrt{\rho}\,z^{\text{common}}_t + \sqrt{1-\rho}\,z^{\text{id}}_t$
+  }{
+    set $z_t \leftarrow z^{\text{id}}_t$
+  }\;
+
+  Convert CV$^2$ target to $\sigma^2 = \log(1+\text{CV}^2)$; \\
+  set $\varepsilon_t \leftarrow \exp\{\sigma z_t - \tfrac{1}{2}\sigma^2\}$ so $E[\varepsilon_t]=1$, $\operatorname{Var}=\text{CV}^2$.\;
+
+  \tcp{Multiplicative series and level scaling}
+  Form $x^{\text{raw}}_t = b_t \cdot \varepsilon_t$; \\
+  draw a desired mean $\bar{x}$ (e.g., Uniform[20,100]); \\
+  rescale to $x^{\text{all}}_t = x^{\text{raw}}_t \cdot \bar{x} / \overline{x^{\text{raw}}}$.\;
+}
+\end{algorithm}
+```

@@ -1,0 +1,127 @@
+```{r}
+#| label: fig-leadtime_csl_sensitivity
+#| fig-width: 16
+#| fig-height: 6
+#| out.height: "75%"
+#| fig-pos: "htbp"
+#| fig-cap: "Sensitivity of achieved cycle service level (CSL) to alternative lead-time assumptions in the empirical inventory simulation."
+
+library(tidyverse)
+
+# read data ---------------------------------------------------------------
+
+inv_path <- project_path("data/results/inv_df_emp_leadtime_sensitivity.rds")
+
+inv_df_emp_lt <- read_rds(inv_path) |>
+  mutate(
+    model = case_when(
+      model == "tckf" ~ "TCKF",
+      model == "demand_planner" ~ "Demand Planner",
+      model == "system_gen" ~ "System-Generated",
+      .default = model
+    ),
+    policy = recode(
+      policy,
+      "deterministic" = "As-is policy",
+      "myopic (k=5)" = "Myopic (k=5)",
+      "myopic (k=10)" = "Myopic (k=10)",
+      "myopic (k=20)" = "Myopic (k=20)",
+      "upper_q80" = "Quantile 80",
+      "upper_q85" = "Quantile 85",
+      "upper_q90" = "Quantile 90",
+      "upper_q95" = "Quantile 95",
+      "capped" = "Capped",
+      "oracle" = "Oracle"
+    ),
+    scenario = recode(
+      scenario,
+      "lead_time_1" = "Lead time = 1",
+      "lead_time_2" = "Lead time = 2",
+      "lead_time_3" = "Lead time = 3",
+      "lead_time_mix_123" = "Lead time mix {1,2,3}"
+    ),
+    censorship_type = as.character(censorship_type)
+  ) |>
+  filter(
+    date != as.Date("2019-01-01"),
+    censorship_type == "none",
+    !policy %in% c("Capped", "Oracle")
+  )
+
+# plot styling ------------------------------------------------------------
+
+model_colour_values <- c(
+  "TCKF" = "#2c3e50",
+  "System-Generated" = "#e67e22",
+  "Demand Planner" = "#568203"
+)
+
+model_shape_values <- c(
+  "TCKF" = 1,
+  "System-Generated" = 2,
+  "Demand Planner" = 3
+)
+
+policy_levels <- c(
+  "As-is policy", "Myopic (k=5)", "Myopic (k=10)", "Myopic (k=20)",
+  "Quantile 80", "Quantile 85", "Quantile 90", "Quantile 95",
+  "Capped", "Oracle"
+)
+
+scenario_levels <- c(
+  "Lead time = 1",
+  "Lead time = 2",
+  "Lead time = 3",
+  "Lead time mix {1,2,3}"
+)
+
+plot_theme <- theme_minimal(base_family = "sans", base_size = 16) +
+  theme(
+    panel.border = element_rect(colour = "#6d8196", fill = NA, linewidth = 0.4),
+    panel.grid.major = element_line(colour = "grey92", linewidth = 0.35),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(face = "bold", colour = "#1a2b48"),
+    axis.title.y = element_text(face = "bold", colour = "#1a2b48"),
+    axis.text.x = element_text(colour = "#1a2b48"),
+    axis.text.y = element_text(colour = "#1a2b48"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", colour = "#1a2b48"),
+    legend.text = element_text(colour = "#1a2b48"),
+    plot.title = element_text(colour = "#1a2b48"),
+    strip.text = element_text(face = "bold", colour = "#1a2b48")
+  )
+
+
+# summary table -----------------------------------------------------------
+
+plot_df <- inv_df_emp_lt |>
+  group_by(scenario, policy, model) |>
+  summarise(
+    csl = mean(met_demand, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    policy = factor(policy, levels = policy_levels),
+    scenario = factor(scenario, levels = scenario_levels),
+    model = factor(model, levels = c("TCKF", "System-Generated", "Demand Planner"))
+  )
+
+ggplot(plot_df, aes(x = scenario, y = csl, group = model)) +
+  geom_line(aes(colour = model), linewidth = 0.75, alpha = 0.9) +
+  geom_point(aes(colour = model, shape = model), size = 2.6, alpha = 0.95) +
+  scale_colour_manual(values = model_colour_values) +
+  scale_shape_manual(values = model_shape_values) +
+  facet_wrap(~policy, ncol = 4) +
+  labs(
+    x = "Lead-time scenario",
+    y = "Achieved CSL",
+    colour = "Method",
+    shape = "Method"
+  ) +
+  plot_theme +
+  theme(
+    axis.text.x = element_text(angle = 35, hjust = 1),
+    legend.position = "right"
+  )
+
+```

@@ -1,0 +1,47 @@
+```{r}
+#| include: false
+#| out.width: "100%"
+#| fig-width: 8
+#| fig-height: 6
+
+fva_tidy_num <- fc_acc_num |>
+  group_by(product, store, model) |>
+  summarise(fva = mean(fva, na.rm = TRUE), .groups = "drop") |>
+  mutate(fva_inv = 1 - fva) |>
+  select(-fva) |>
+  pivot_wider(names_from = model, values_from = fva_inv) |>
+  select(-c(store, product))
+
+fva_tidy_emp <- fc_acc_emp |>
+  group_by(product_code, site_code, model) |>
+  summarise(fva = mean(fva, na.rm = TRUE), .groups = "drop") |>
+  mutate(fva_inv = 1 - fva) |>
+  select(-fva) |>
+  pivot_wider(names_from = model, values_from = fva_inv) |>
+  select(-c(site_code, product_code))
+
+
+op <- par(no.readonly = TRUE)
+par(mfrow = c(1, 2), mar = c(2, 1, 2, 1), oma = c(0, 0, 0, 0))
+
+nemenyi(fva_tidy_num, conf.level = 0.95, plottype = "vmcb", main = "Numerical")
+nemenyi(fva_tidy_emp, conf.level = 0.95, plottype = "vmcb", main = "Empirical")
+
+par(op)
+
+pdf(file.path(project_path("writings/pom/figs"), "nemenyi_side_by_side.pdf"), width = 12, height = 3.5)
+
+
+
+op <- par(no.readonly = TRUE)
+par(mfrow = c(1, 2), mar = c(2, 1, 2, 1))
+
+nemenyi(fva_tidy_num, conf.level = 0.95, plottype = "vmcb", main = "Numerical")
+nemenyi(fva_tidy_emp, conf.level = 0.95, plottype = "vmcb", main = "Empirical")
+
+par(op)
+dev.off()
+
+```
+
+![Nemenyi post-hoc test with 95% confidence level on inverted FVA values.](figs/nemenyi_side_by_side.pdf){#fig-fva_nemenyi_wp2}

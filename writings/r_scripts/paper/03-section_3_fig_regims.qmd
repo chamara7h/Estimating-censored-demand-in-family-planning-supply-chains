@@ -1,0 +1,184 @@
+```{r}
+#| label: fig-model_diag_regime_wp2
+#| fig-width: 16
+#| fig-height: 9
+#| out.height: "85%"
+#| fig-cap: "Point forecast accuracy and empirical coverage of the regime-separated and pooled TCKF variants under short, moderate, and persistent service interruptions. Error bars represent 95% confidence intervals."
+
+
+# read data ---------------------------------------------------------------
+
+summary_path <- project_path(
+  "data/results/tckf_regime_separation_summary.rds"
+)
+
+quantile_summary_path <- project_path(
+  "data/results/tckf_regime_separation_quantile_coverage.rds"
+)
+
+regime_diagnostic_summary <- read_rds(summary_path) |>
+  mutate(
+    scenario = factor(
+      scenario,
+      levels = c(
+        "Short interruptions",
+        "Moderate interruptions",
+        "Persistent interruptions"
+      )
+    ),
+    evaluation_period = factor(
+      evaluation_period,
+      levels = c("Overall", "After stockout", "After interruption")
+    ),
+    variant = factor(
+      variant,
+      levels = c("TCKF-Separated", "TCKF-Pooled")
+    )
+  )
+
+quantile_levels <- c(0.80, 0.85, 0.90, 0.95)
+
+quantile_coverage_summary <- read_rds(quantile_summary_path) |>
+  mutate(
+    scenario = factor(
+      scenario,
+      levels = c(
+        "Short interruptions",
+        "Moderate interruptions",
+        "Persistent interruptions"
+      )
+    ),
+    evaluation_period = factor(
+      evaluation_period,
+      levels = c("Overall", "After stockout", "After interruption")
+    ),
+    variant = factor(
+      variant,
+      levels = c("TCKF-Separated", "TCKF-Pooled")
+    )
+  )
+
+
+# plot styling ------------------------------------------------------------
+
+variant_colour_values <- c(
+  "TCKF-Separated" = "#2D68C4",
+  "TCKF-Pooled" = "#ffb343"
+)
+
+variant_shape_values <- c(
+  "TCKF-Separated" = 16,
+  "TCKF-Pooled" = 17
+)
+
+plot_theme <- theme_minimal(base_family = "sans", base_size = 14) +
+  theme(
+    panel.border = element_rect(
+      colour = "#6d8196",
+      fill = NA,
+      linewidth = 0.4
+    ),
+    panel.grid.major = element_line(colour = "grey92", linewidth = 0.35),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(face = "bold", colour = "#1a2b48"),
+    axis.title.y = element_text(face = "bold", colour = "#1a2b48"),
+    axis.text.x = element_text(colour = "#1a2b48"),
+    axis.text.y = element_text(colour = "#1a2b48"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", colour = "#1a2b48"),
+    legend.text = element_text(colour = "#1a2b48"),
+    strip.text = element_text(face = "bold", colour = "#1a2b48"),
+    plot.title = element_text(face = "bold", colour = "#1a2b48")
+  )
+
+position_variant <- position_dodge(width = 0.35)
+
+
+# RMSE --------------------------------------------------------------------
+
+rmse_plot <- ggplot(
+  regime_diagnostic_summary,
+  aes(
+    x = evaluation_period,
+    y = mean_rmse,
+    colour = variant,
+    shape = variant
+  )
+) +
+  geom_errorbar(
+    aes(ymin = rmse_lower, ymax = rmse_upper),
+    width = 0.12,
+    linewidth = 0.55,
+    position = position_variant
+  ) +
+  geom_point(size = 3, position = position_variant) +
+  scale_colour_manual(values = variant_colour_values) +
+  scale_shape_manual(values = variant_shape_values) +
+  facet_wrap(~scenario, ncol = 1, scales = "free_y") +
+  labs(
+    subtitle = "(a) Point forecast accuracy",
+    x = NULL,
+    y = "RMSE",
+    colour = "Variant",
+    shape = "Variant"
+  ) +
+  plot_theme +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+
+# upper-quantile coverage -------------------------------------------------
+
+quantile_coverage_plot <- ggplot(
+  quantile_coverage_summary,
+  aes(
+    x = quantile_level,
+    y = mean_coverage,
+    colour = variant,
+    shape = variant,
+    group = variant
+  )
+) +
+  # geom_abline(
+  #   intercept = 0,
+  #   slope = 1,
+  #   colour = "#e74c3c",
+  #   linetype = "dashed",
+  #   linewidth = 0.65
+  # ) +
+  geom_errorbar(
+    aes(ymin = coverage_lower, ymax = coverage_upper),
+    width = 0.004,
+    linewidth = 0.45,
+    alpha = 0.75
+  ) +
+  geom_line(linewidth = 0.75) +
+  geom_point(size = 2.7) +
+  scale_colour_manual(values = variant_colour_values) +
+  scale_shape_manual(values = variant_shape_values) +
+  scale_x_continuous(
+    breaks = quantile_levels,
+    labels = scales::label_percent(accuracy = 0.1)
+  ) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  facet_grid(
+    rows = vars(scenario),
+    cols = vars(evaluation_period),
+    scales = "free_y"
+  ) +
+  labs(
+    subtitle = "(b) Quantile calibration",
+    x = "Nominal coverage",
+    y = "Empirical coverage",
+    colour = "Variant",
+    shape = "Variant"
+  ) +
+  plot_theme +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1))
+
+
+# combined diagnostic figure ---------------------------------------------
+
+(rmse_plot | quantile_coverage_plot) +
+  plot_layout(ncol = 2, widths = c(1, 2.2), guides = "collect")
+
+```

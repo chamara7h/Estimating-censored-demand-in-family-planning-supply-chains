@@ -1,0 +1,60 @@
+```{r}
+#| label: fig-emp-mcpr-loss-opening-mos
+#| fig-width: 16
+#| fig-height: 6
+#| out.height: "75%"
+#| fig-pos: "htbp"
+#| fig-cap: "Empirical public-health trade-off between relative mCPR loss and opening months of stock across replenishment policies."
+
+frontier_mcpr <- plot_df_emp_inv |>
+  group_by(policy) |>
+  mutate(
+    frontier = !purrr::map_lgl(
+      seq_len(n()),
+      ~ any(
+        opening_mos <= opening_mos[.x] &
+          mcpr_loss <= mcpr_loss[.x] &
+          (
+            opening_mos < opening_mos[.x] |
+              mcpr_loss < mcpr_loss[.x]
+          ),
+        na.rm = TRUE
+      )
+    )
+  ) |>
+  ungroup()
+
+frontier_mcpr_path <- frontier_mcpr |>
+  filter(frontier) |>
+  arrange(policy, opening_mos, mcpr_loss)
+
+ggplot(frontier_mcpr, aes(x = opening_mos, y = mcpr_loss)) +
+  geom_hline(
+    yintercept = 0,
+    colour = "grey65",
+    linetype = "dashed",
+    linewidth = 0.35
+  ) +
+  geom_path(
+    data = frontier_mcpr_path,
+    aes(group = policy),
+    colour = "black",
+    linewidth = 0.35,
+    linetype = "dashed"
+  ) +
+  geom_point(aes(colour = model, shape = model), size = 3, stroke = 1, alpha = 0.9) +
+  scale_colour_manual(values = model_colour_values) +
+  scale_shape_manual(values = model_shape_values) +
+  facet_wrap(~policy, ncol = 4, scales = "free") +
+  labs(
+    x = "Opening months of stock",
+    y = "Relative mCPR loss",
+    colour = "Method",
+    shape = "Method"
+  ) +
+  guides(
+    colour = guide_legend(order = 1),
+    shape = guide_legend(order = 1)
+  ) +
+  plot_theme
+```

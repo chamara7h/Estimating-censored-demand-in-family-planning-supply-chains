@@ -1,0 +1,133 @@
+---
+title: "E-companion to Estimating censored demand in family planning supply chains: forecast accuracy, inventory implications, and public health outcomes"
+
+bibliography: references.bib
+
+execute:
+  echo: false
+  message: false
+  warning: false
+  cache: false
+pdf-engine: pdflatex
+prefer-html: true
+format:
+  html:
+    number-sections: true
+  docx:
+    number-sections: true
+  elsevier-pdf:
+    template-partials:
+      - final-layout/e-companion/before-body.tex
+    keep-tex: true
+    number-sections: false
+    documentclass: elsarticle
+    include-in-header:
+      - header.tex
+      - text: |
+          \usepackage{setspace} 
+          \onehalfspacing
+          \geometry{margin=1in}
+          \usepackage{todonotes,mathtools,bm,amsmath,mathpazo}
+          \usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+          \setlength{\parindent}{0cm}
+          \usepackage{tikz}
+          \usetikzlibrary{
+              arrows.meta,
+              positioning,
+              fit,
+              calc,
+              shapes.misc,
+              shapes.multipart
+            }
+    journal:
+      name: 'Production and Operations Management'
+      formatting: doubleblind
+      model: 3p
+      cite-style: authoryear
+---
+
+
+```{r}
+#| label: setup
+#| context: setup
+#| include: false
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(ggthemes)
+library(patchwork)
+library(tsibble)
+library(feasts)
+library(viridis)
+library(tsutils)
+library(furrr)
+
+
+wd <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+
+child_path <- function(file) {
+  if (wd == "D:/GIT/PhD_project") {
+    file.path(
+      "..", "..", "phd_project_wp2", "writings", "pom",
+      "r_scripts", "paper", file
+    )
+  } else {
+    file.path("r_scripts", "paper", file)
+  }
+}
+
+project_path <- function(path) {
+  candidates <- c(
+    path,
+    file.path("..", "..", path),
+    file.path("..", "..", "phd_project_wp2", path),
+    file.path("..", "..", "..", "phd_project_wp2", path)
+  )
+  
+  existing_path <- candidates[file.exists(candidates)]
+  
+  if (length(existing_path) == 0) {
+    stop("Could not find file: ", path, call. = FALSE)
+  }
+  
+  existing_path[[1]]
+}
+
+```
+
+```{r appendix1, child="10-appendix1.qmd"}
+```
+
+\pagebreak
+
+```{r appendix2, child="11-appendix2.qmd"}
+```
+
+\pagebreak
+
+```{r appendix3, child="12-appendix3.qmd"}
+```
+
+\pagebreak
+
+```{r appendix4, child="13-appendix4.qmd"}
+```
+
+\pagebreak
+
+```{r appendix5, child="14-appendix5.qmd"}
+```
+
+\pagebreak
+
+```{r appendix6, child="15-appendix6.qmd"}
+```
+
+
+\pagebreak
+
+# References {#references .unnumbered}
+
+::: {#refs}
+:::

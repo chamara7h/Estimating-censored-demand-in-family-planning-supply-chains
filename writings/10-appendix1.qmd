@@ -1,0 +1,91 @@
+## Section 1: Truncated log-likelihood and parameter initialisation {#sec-appendix_wp2_1}
+
+The derivation of the likelihood function begins by noting that, prior to censoring, the one-step-ahead forecast error for each observation follows a normal distribution:
+
+$$
+y_t \mid \mathcal{F}_{t-1} \sim \mathcal{N}(\mu_t, \sigma_t^2)
+$$ {#eq-wp2_a1}
+
+where $\mu_t = H \hat{X}_{t|t-1}$ and $\sigma_t^2 = H P_{t|t-1} H^\top + R$ are the predicted mean and variance at time $t$, conditional on prior information $\mathcal{F}_{t-1}$.
+
+However, due to stock constraints, the observed values may be censored. Accordingly, we distinguish three regimes:
+
+* **Uncensored**: The full observation $y_t$ is available. The likelihood is the usual Gaussian density:
+
+  $$
+  p(y_t \mid \mu_t, \sigma_t^2) = \frac{1}{\sqrt{2\pi \sigma_t^2}} \exp\left( -\frac{(y_t - \mu_t)^2}{2\sigma_t^2} \right)
+  $$ {#eq-wp2_a2}
+
+* **Partially censored**: We observe $y_t = \min(D_t, s_t)$, and know that true demand exceeds the observed value. This is equivalent to right-censoring from below at $y_t$, and the likelihood becomes the survival function:
+
+  $$
+  P(Y_t > y_t) = 1 - \Phi\left( \frac{y_t - \mu_t}{\sigma_t} \right)
+  $$ {#eq-wp2_a3}
+
+* **Fully censored**: For $y_t = 0$, the only information available is that demand is positive but completely unobserved due to stockouts or interruptions. The likelihood in this case becomes:
+
+  $$
+  P(Y_t > 0) = 1 - \Phi\left( -\frac{\mu_t}{\sigma_t} \right)
+  $$
+
+Taking logs and summing over time leads to the total log-likelihood:
+
+$$
+\log L(\theta) = \sum_t \log p(y_t \mid \mu_t, \sigma_t^2)
+$$ {#eq-wp2_a4}
+
+which, depending on the censoring status of each observation, expands to:
+
+$$
+\log L(\theta) = \sum_t
+\begin{cases}
+-\frac{1}{2} \left[ \log(2\pi \sigma_t^2) + \frac{(y_t - \mu_t)^2}{\sigma_t^2} \right], & \text{if } y_t \text{ is uncensored} \\
+\log\left(1 - \Phi\left(\frac{y_t - \mu_t}{\sigma_t}\right)\right), & \text{if } y_t \text{ is partially censored} \\
+\log\left(1 - \Phi\left(-\frac{\mu_t}{\sigma_t}\right)\right), & \text{if } y_t = 0 \text{ (fully censored)}
+\end{cases}
+$$ {#eq-wp2_a5}
+
+Each term in this expression corresponds to the conditional probability of observing $y_t$ given the predicted distribution under the Kalman framework. For uncensored observations, the log-likelihood follows the Gaussian log-density, directly comparing the observed and predicted values. In the partially censored case, the observation is known only to lie above the censored threshold; thus, its likelihood is the log of the survival function of the normal distribution. For fully censored points, where $y_t = 0$, we only know that the true demand exceeded zero. This results in a likelihood based solely on the left tail of the predicted Gaussian distribution.
+
+### Initialization and parameter estimation
+
+### Initializing state vector
+
+The latent state vector $X_0 = (\ell_0, \tau_0, \gamma_0)^T$ includes the level, trend, and seasonal components. To initialize $X_0$, we rely on a training subset of the data containing uncensored observations. This subset is first decomposed using STL (Seasonal-Trend decomposition via Loess) [@cleveland1990], from which the initial values are extracted:
+
+-   $\ell_0$: set to the most recent value of the STL trend component
+-   $\tau_0$: estimated as the average slope over a small rolling window in the trend component
+-   $\gamma_0$: set to the final value of the seasonal component from STL or the mean of a complete seasonal cycle if available
+
+In cases where no seasonal pattern is reliable at initialization, $\gamma_0$ is set to zero and learned adaptively.
+
+These initializations follow standard practices in state-space modeling [@durbin2012; @harvey1990], where the latent level and trend are derived from available smoothed signals to provide a statistically grounded prior. Phase alignment in the seasonal component initialization ensures consistency with the observed seasonal structure when available [@harvey1990].
+
+### Initializing covariance matrix
+
+In line with recommendations for initializing latent state uncertainty under partial observability [@west1997], the initial state covariance matrix $P_{0|0}$ is defined as a diagonal matrix with variances estimated from the empirical variance of each corresponding STL component:
+
+$$
+P_{0|0} = \text{diag}(\sigma^2_{\ell},\ \sigma^2_{\tau},\ \sigma^2_{\gamma})
+$$ {#eq-eleven}
+
+This specification captures component-specific volatility while assuming independence between state dimensions at initialization. If no reliable estimation is available, we specify a high-variance diffuse prior (e.g., variance of 100) to allow sufficient flexibility in early state adaptation.
+
+### Initializing parameters
+
+The parameters $Q_0, R, \phi$ and $\lambda$ are initialized as follows:
+
+-   $Q_0 = \text{diag}(0.1, 0.1, 0.1)$: assumes gradual independent evolution across components [@harvey1990]
+-   $R$: initialized based on the variance of residuals obtained from STL decomposition [@durbin2012]
+-   $\phi$: set to 0.9 to allow persistence in seasonal patterns [@west1997]
+-   $\lambda$: initialized to 0.5 to model moderate inflation of uncertainty during censoring, aligned with the dynamic variance inflation strategies discussed in @trapero2024
+
+These initial values are subsequently refined through maximizing the truncated log-likelihood:
+
+$$
+\log \mathcal{L}(\theta) = \sum_t \begin{cases}
+  -\frac{1}{2} \left[ \log(\sigma_t^2) + \frac{(y_t - \mu_t)^2}{\sigma_t^2} \right] & \text{if uncensored} \\
+  \log \left(1 - \Phi\left(\frac{y_t - \mu_t}{\sigma_t}\right)\right) & \text{if partially censored} \\
+  \log \left(1 - \Phi\left(\frac{-\mu_t}{\sigma_t} \right)\right), & \text{if fully censored (i.e., } y_t = 0\text{)}
+\end{cases}
+$$ {#eq-twelve}

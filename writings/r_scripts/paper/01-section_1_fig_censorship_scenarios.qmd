@@ -1,0 +1,92 @@
+```{r}
+#| label: fig-ts_plot_wp2
+#| out.width: "70%"
+#| fig-width: 14
+#| fig-height: 5
+#| fig-cap: "Censoring scenarios in family planning supply chains."
+
+synthetic_tsibble <- read_rds(project_path("data/tidy_data/synthetic_data.rds"))
+
+# pick one series per
+
+selected <- synthetic_tsibble |>
+  filter(store == 'S51', product == 'P8')
+
+# grab the full time‐slice for those series
+
+plot_df <- synthetic_tsibble |>
+  semi_join(selected, by = c("series_category","series_type","store","product")) |> 
+  mutate(series_type     = str_to_sentence(series_type),
+         series_category = str_to_sentence(series_category)) |> 
+  group_by(series_category, series_type, store, product) |>
+  arrange(date) |>
+  mutate(period = row_number()) |>
+  ungroup()
+
+
+# build shading rectangles for each contiguous run of censoring
+
+shade_df <- plot_df |>
+  as_tibble() |> 
+  arrange(series_category, series_type, store, product, period) |>
+  group_by(series_category, series_type, store, product) |>
+  mutate(
+    run_id = cumsum(
+      c(TRUE, censorship_type[-1] != censorship_type[-n()])  
+    )
+  ) |>
+  group_by(series_category, series_type, store, product, run_id, censorship_type) |>
+  summarize(start = min(period), end = max(period), .groups = "drop") |>
+  filter(censorship_type != "none")
+
+# plot
+
+ggplot() +
+  geom_rect(
+    data = shade_df,
+    aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, fill = censorship_type), 
+    inherit.aes = FALSE, alpha = 0.25) +
+  
+  geom_rect(data = shade_df |> 
+              filter(start == end),
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, colour = censorship_type),
+            inherit.aes = FALSE, fill = NA,
+            size = 0.5, alpha = 0.05, show.legend = FALSE) +
+  
+  geom_line(data = plot_df,
+            aes(x = period, y = actual_demand, colour = "Actual", linetype = "Actual"),
+            size = 0.7) +
+  
+  geom_line(data = plot_df,
+            aes(x = period, y = observed_demand, colour = "Observed", linetype = "Observed"),
+            size = 0.7) +
+  
+  scale_fill_manual(name = "Censoring type", values = c(censored = "#E69F00", disruption = "#0072B2"),
+                    labels = c(censored   = "Stockout", disruption = "Interruption")) +
+  
+  scale_colour_manual(name = "Demand", 
+                      values = c(Actual = "black", Observed = "red", censored = "#E69F00", disruption = "#0072B2"),
+                      breaks = c("Actual", "Observed")) +
+  
+  scale_linetype_manual(name = "Demand",values = c(Actual = "solid", Observed = "dashed")) +
+  
+  labs(x = "Month", y = "Demand") +
+  theme_minimal(base_family = "sans", base_size = 16) +
+  theme(
+    panel.border     = element_rect(colour = "#6d8196", fill = NA, size = 0.4),
+    panel.grid.major = element_line(colour = "grey92", size = 0.35),
+    panel.grid.minor = element_blank(),
+
+    axis.title.x     = element_text(face = "bold", colour = "#1a2b48"),
+    axis.title.y     = element_text(face = "bold", colour = "#1a2b48"),
+    axis.text.x      = element_text(colour = "#1a2b48"),
+    axis.text.y      = element_text(colour = "#1a2b48"),
+
+    legend.position  = "right",
+    legend.title     = element_text(face = "bold", colour = "#1a2b48"),
+    legend.text      = element_text(colour = "#1a2b48"),
+
+    plot.title       = element_text(colour = "#1a2b48")
+  )
+
+```

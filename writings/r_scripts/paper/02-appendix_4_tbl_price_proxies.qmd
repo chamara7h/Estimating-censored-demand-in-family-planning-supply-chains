@@ -1,0 +1,35 @@
+```{r}
+#| label: tbl-emp-price
+#| tbl-cap: "Price proxies for empirical data."
+
+price_tbl_display <- tribble(
+  ~product_code, ~product, ~proxy_price_usd,
+  "AS27000", "Microgynon / pill", 0.220,
+  "AS27132", "Microlut", 0.288,
+  "AS27133", "Depo Provera injectable", 0.637,
+  "AS27134", "Noristerat injectable", 0.637,
+  "AS27138", "Implanon", 10.500,
+  "AS27137", "Jadelle", 8.520,
+  "AS42018", "Copper T IUD", 0.393,
+  "AS46000", "Male condom", 0.030,
+  "AS17005", "Female condom", 0.490
+)
+
+price_tbl_display |>
+  mutate(
+    proxy_price_usd = sprintf("%.3f", proxy_price_usd)
+  ) |>
+  rename(
+    `Product code` = product_code,
+    `Product` = product,
+    `Proxy unit price (USD)` = proxy_price_usd
+  ) |>
+  knitr::kable(booktabs = TRUE, linesep = "") |>
+  kable_styling(
+    latex_options = c("scale_down", "repeat_header"),
+    font_size = 8
+  ) |>
+  column_spec(1, "7em") |>
+  column_spec(2, "14em") |>
+  column_spec(3, "8em")
+```

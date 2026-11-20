@@ -1,0 +1,48 @@
+```{=latex}
+\begin{algorithm}[H]
+\scriptsize
+\SetAlgoNlRelativeSize{-2}
+\SetAlCapSkip{0.5em}
+\SetInd{0.5em}{1em}
+\DontPrintSemicolon
+\caption{Synthetic time series generation -- Part 2}
+\label{alg:synthetic_generation_part2}
+
+\KwIn{Intermediate latent series $x^{\text{all}}_t$ for each product--store pair}
+\KwOut{Panel dataset with \texttt{actual\_demand}, \texttt{observed\_demand}, \texttt{censoring\_type}}
+
+\ForEach{series}{
+  \tcp{Type-dependent spikes and zeros}
+  \If{type $\in$ \{erratic, lumpy\}}{
+    sample indices and multiply $x^{\text{all}}_t$ by log-normal spike factors (higher freq/size for erratic).
+  }
+  
+  \If{type = lumpy}{
+    set $x_t = x^{\text{all}}_t \cdot \mathbb{I}(\text{Bern}(p_{nz}\in[0.3,0.7]))$
+  }
+  \ElseIf{type = erratic}{
+    set $x_t = x^{\text{all}}_t \cdot \mathbb{I}(\text{Bern}(p_{nz}\in[0.8,1.0]))$
+  }
+  \Else{
+    set $x_t = x^{\text{all}}_t$
+  }
+
+  \tcp{Block censoring until target proportion is covered}
+  Initialize $y_t \leftarrow x_t$, \texttt{censoring\_type}$\leftarrow$ "none"; \\
+  draw target censor share $q \sim \text{Uniform}(0.20, 0.40)$ and total censored count $qT$; \\
+  sample block lengths $L$ (1 with prob 0.7; otherwise 2--5) until $\sum L \ge qT$; \\
+  trim last block; \\
+  for each block, sample \textsf{event} $\in \{\textsf{disruption}, \textsf{censored}\}$ with probs (0.3, 0.7) and a start index avoiding overlap.\;
+
+  \eIf{\textsf{event} = disruption}{
+    set $y_t = 0$ and tag "disruption"
+  }{
+    set $y_t = u \cdot x_t$ with $u \sim \text{Uniform}(0.3,0.8)$ and tag "censored"
+  }.
+
+  \tcp{Record}
+  Save \{date, series\_category, series\_type, store, product, 
+  actual\_demand $=x_t$, observed\_demand $=y_t$, censoring\_type\}.
+}
+\end{algorithm}
+```

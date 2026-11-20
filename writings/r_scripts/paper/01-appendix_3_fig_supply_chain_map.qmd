@@ -1,0 +1,1 @@
+![Highlevel family planning supply chain map of Cote d'Ivoire.](figs/sc_flow.pdf){#fig-sc_flow width="100%"}

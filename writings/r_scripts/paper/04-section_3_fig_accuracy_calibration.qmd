@@ -1,0 +1,116 @@
+```{r}
+#| label: fig-model_diag2_wp2
+#| fig-width: 16
+#| fig-height: 5
+#| out.height: "75%"
+#| fig-cap: "Accuracy-calibration trade-off induced by the internal modelling choices."
+
+
+# read data ---------------------------------------------------------------
+
+diag_path <- project_path("data/predictions/tckf_diag.rds")
+
+tckf_diag_components <- read_rds(diag_path)
+
+
+# component-level summary -------------------------------------------------
+
+sku_diagnostics <- tckf_diag_components |>
+  filter(
+    !is.na(yhat),
+    censorship_type == "none"
+  ) |>
+  group_by(
+    diag_spec, diag_lambda_choice, diag_cp_mode,
+    series_category, series_type, store, product
+  ) |>
+  summarise(
+    sku_rmse = sqrt(mean((yhat - actual_demand)^2, na.rm = TRUE)),
+    sku_cov = mean(
+      actual_demand <= upper_q95,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+
+diag_summary_plot <- sku_diagnostics |>
+  group_by(diag_spec, diag_lambda_choice, diag_cp_mode) |>
+  summarise(
+    mean_rmse = mean(sku_rmse, na.rm = TRUE),
+    se_rmse = sd(sku_rmse, na.rm = TRUE) / sqrt(n()),
+    mean_cov = mean(sku_cov, na.rm = TRUE),
+    se_cov = sd(sku_cov, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+
+# accuracy-calibration plot ----------------------------------------------
+
+ggplot(
+  diag_summary_plot,
+  aes(
+    x = mean_rmse,
+    y = mean_cov,
+    colour = diag_cp_mode,
+    shape = diag_lambda_choice
+  )
+) +
+  geom_point(size = 3, alpha = 0.75) +
+  geom_errorbar(
+    aes(
+      xmin = mean_rmse - 1.96 * se_rmse,
+      xmax = mean_rmse + 1.96 * se_rmse
+    ),
+    orientation = "y",
+    width = 0,
+    linewidth = 0.6,
+    alpha = 0.8
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = mean_cov - 1.96 * se_cov,
+      ymax = mean_cov + 1.96 * se_cov
+    ),
+    width = 0,
+    linewidth = 0.6,
+    alpha = 0.8
+  ) +
+  # geom_hline(
+  #   yintercept = 0.95,
+  #   colour = "#e74c3c",
+  #   linetype = "dashed",
+  #   linewidth = 0.65
+  # ) +
+  facet_wrap(~diag_spec) +
+  labs(
+    x = "Mean RMSE (Point Accuracy)",
+    y = "Empirical 90% Coverage",
+    colour = "Conformal Mode",
+    shape = "Lambda Choice"
+  ) +
+  scale_colour_manual(
+    values = c(
+      "global" = "#ffb343",
+      "rolling" = "#2D68C4"
+    )
+  ) +
+  theme_minimal(base_family = "sans", base_size = 16) +
+  theme(
+    panel.border = element_rect(
+      colour = "#6d8196",
+      fill = NA,
+      linewidth = 0.4
+    ),
+    panel.grid.major = element_line(colour = "grey92", linewidth = 0.35),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(face = "bold", colour = "#1a2b48"),
+    axis.title.y = element_text(face = "bold", colour = "#1a2b48"),
+    axis.text.x = element_text(colour = "#1a2b48"),
+    axis.text.y = element_text(colour = "#1a2b48"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", colour = "#1a2b48"),
+    legend.text = element_text(colour = "#1a2b48"),
+    plot.title = element_text(colour = "#1a2b48")
+  )
+
+```

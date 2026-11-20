@@ -1,0 +1,75 @@
+```{r}
+#| label: tbl-num_fc_acc_wp2
+#| tbl-cap: "Overall forecast performance, expressed as mean FVA and mean Skill Scores, in the numerical experiment. Best values in each column are highlighted in bold."
+#| tbl-pos: 'H'
+
+set_to_bold_max <- function(tbl, cols = 2:6, digits = 3) {
+  df <- as.data.frame(tbl, stringsAsFactors = FALSE)
+  cols <- cols[cols <= ncol(df)]
+  if (length(cols) == 0) return(df)
+  
+  for (i in cols) {
+    # try numeric conversion (silently)
+    vec_num <- suppressWarnings(as.numeric(as.character(df[[i]])))
+    
+    # if whole column non-numeric -> make blanks and skip
+    if (all(is.na(vec_num))) {
+      df[[i]] <- rep("", nrow(df))
+      next
+    }
+    
+    # use rounded values for display and tie detection
+    rounded <- round(vec_num, digits)
+    
+    # mask for best (maximum). handle NA safely
+    best_mask <- !is.na(rounded) & rounded == max(rounded, na.rm = TRUE)
+    
+    # formatted strings (blank for NA)
+    fmt <- paste0("%.", digits, "f")
+    formatted <- ifelse(is.na(rounded), "", sprintf(fmt, rounded))
+    
+    # bold all best entries
+    formatted[best_mask] <- paste0("\\textbf{", formatted[best_mask], "}")
+    
+    df[[i]] <- formatted
+  }
+  
+  return(df)
+}
+
+
+fc_acc_num |> 
+  select(model, fva,
+         qs80_sc, qs85_sc, qs90_sc, qs95_sc, qs97.5_sc) |> 
+  group_by(model) |> 
+  summarise(
+    across(
+      where(is.numeric),
+      list(
+        mean   = ~ round(mean(. , na.rm = TRUE), 3)
+        # median = ~ round(median(. , na.rm = TRUE), 3)
+      ),
+      .names = "{.col}_{.fn}"
+    ),
+    .groups = "drop"
+  ) |> 
+  rename('Method' = model, 'Mean FVA' = fva_mean,
+         'Mean Skill Score (q80)' = qs80_sc_mean,
+         'Mean Skill Score (q85)' = qs85_sc_mean,
+         'Mean Skill Score (q90)' = qs90_sc_mean,
+         'Mean Skill Score (q95)' = qs95_sc_mean,
+         'Mean Skill Score (q97.5)' = qs97.5_sc_mean) |> 
+  arrange(desc(`Mean FVA`)) |> 
+  set_to_bold_max(cols = 2:7, digits = 3) |> 
+  knitr::kable(format = "latex", booktabs = TRUE, escape = FALSE, align = "llrrrr") |> 
+  kable_styling(latex_options = "scale_down", font_size = 6)  |>  
+  # kable_styling(latex_options = "scale_down", font_size = 6)  |>   # pom
+  column_spec(1, "16em") |> 
+  column_spec(2, "6em") |> 
+  column_spec(3, "6em") |>
+  column_spec(4, "6em") |>
+  column_spec(5, "6em") |>
+  column_spec(6, "6em") |>
+  column_spec(7, "6em")
+
+```
